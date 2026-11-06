@@ -215,10 +215,43 @@ export function montarTorneio(ctx) {
         pods.filter(x => x.p.some(Boolean)).map(x => h("span", { class: "t-campeao" }, x.serie != null ? h("b", { text: x.titulo + ": " }) : null,
           x.p.map((id, k) => id ? (k ? " · " : "") + MED[k] + " " + eqNome(id) : null)))));
     });
+    if (jogos.some(j => j.status === "encerrado" && !j.wo)) w.append(cartaoClassificacaoGeral());
     w.append(cartaoExportar());
     if (T.demo) w.append(h("p", { class: "cap", text: "Este é um torneio de demonstração, com equipes e atletas fictícios. Para apagar: Editar → Apagar torneio." }));
     if (demoBtn) w.append(demoBtn);
     return w;
+  }
+
+  /* ---------- classificação geral e final da etapa ---------- */
+  const posTxt = x => x ? x.pos + "º" + (x.medalha ? " " + MED[x.medalha - 1] : "") + (x.completa ? "" : "*") : "–";
+  function cartaoClassificacaoGeral() {
+    const G = C.classificacaoGeral(esporte, T, jogos, eqNome, ctx.pontuacao || null), nE = T.etapas.length, temSerie = T.etapas.some(e => (e.series || []).length);
+    const sv = (a, b) => (a > 0 ? "+" : "") + a;
+    return h("div", { class: "card" }, h("h3", { text: "Classificação geral" }),
+      h("p", { class: "cap", text: (ctx.pontuacao ? "Pela pontuação do ranking em cada etapa; desempate: " : "Critério: ") + "vitórias, " + (BIR ? "" : "empates, ") + "saldo de pontos e pontos feitos, somando todas as etapas." + (nE > 1 ? " As colunas de etapa mostram a colocação final de cada equipe (* = etapa em andamento)." : "") }),
+      h("div", { class: "tablebox" }, h("table", { class: "t-tab t-tab-lg t-geral" },
+        h("thead", null, h("tr", null, h("th", { text: "#" }), h("th", { class: "l", text: "Equipe" }), ctx.pontuacao && h("th", { text: "Pts" }),
+          T.etapas.map((et, i) => h("th", { text: nE > 1 ? "Et. " + (i + 1) : "Etapa", title: et.nome })), h("th", { text: "J" }), h("th", { text: "V" }), !BIR && h("th", { text: "E" }), h("th", { text: "D" }),
+          BIR && h("th", { text: "Sets" }), h("th", { text: "Saldo" }), h("th", { text: "PF" }), h("th", { text: temSerie ? "Medalhas" : "Pódios" }))),
+        h("tbody", null, G.linhas.map((r, i) => h("tr", { class: i < 3 && r.j ? "podio p" + (i + 1) : "" },
+          h("td", { text: (i + 1) + "º" }), h("td", { class: "l", text: eqNome(r.eid) }), ctx.pontuacao && h("td", { text: r.pts }),
+          r.etapas.map(x => h("td", { text: posTxt(x), title: x && x.serie != null ? C.SERIES[x.serie] : null })), h("td", { text: r.j }), h("td", { text: r.v }), !BIR && h("td", { text: r.e }), h("td", { text: r.d }),
+          BIR && h("td", { text: r.sv + "–" + r.sp }), h("td", { class: "saldo " + (r.saldo > 0 ? "pos" : r.saldo < 0 ? "neg" : ""), text: sv(r.saldo) }), h("td", { text: r.pf }),
+          h("td", { text: r.medalhas.map((n, k) => n ? n + MED[k] : "").filter(Boolean).join(" ") || "–" })))))),
+      SERIES_OK && !ctx.pontuacao ? h("p", { class: "cap", text: "Quando as regras de pontuação por ranking da Liga forem definidas, a classificação geral passa a somar esses pontos." }) : null);
+  }
+  function cartaoClassificacaoEtapa(ei) {
+    const c = C.colocacaoEtapa(esporte, T.etapas[ei], jogosEtapa(ei), T.equipes.map(e => e.id), eqNome);
+    if (!c.ordem.length) return null;
+    return h("details", { class: "t-card t-jogos", open: c.completa },
+      h("summary", null, "Classificação final da etapa" + (c.completa ? "" : " (parcial)")),
+      !c.completa ? h("p", { class: "cap", text: "Parcial: a etapa ainda tem jogos em aberto." }) : null,
+      h("div", { class: "tablebox" }, h("table", { class: "t-tab" },
+        h("thead", null, h("tr", null, h("th", { text: "#" }), h("th", { class: "l", text: "Equipe" }), h("th", { class: "l", text: "Chegou até" }), h("th", { text: "V" }), h("th", { text: "D" }), h("th", { text: "Saldo" }))),
+        h("tbody", null, c.ordem.map(x => h("tr", { class: x.pos <= 3 && c.completa ? "podio p" + x.pos : "" },
+          h("td", { text: x.pos + "º" }), h("td", { class: "l", text: eqNome(x.eid) }),
+          h("td", { class: "l", text: (x.medalha && c.completa ? MED[x.medalha - 1] + " " : "") + (x.serie != null && !String(x.rot).startsWith("Série") ? C.SERIES[x.serie] + " · " : "") + (x.rot || "") }),
+          h("td", { text: x.v }), h("td", { text: x.d }), h("td", { text: (x.saldo > 0 ? "+" : "") + x.saldo })))))));
   }
 
   let exportando = null;
@@ -360,6 +393,7 @@ export function montarTorneio(ctx) {
         b.update(ref(), { etapas: T.etapas.map((e, i) => i === etapaSel ? { ...e, series: [] } : e) }); await b.commit(); toast("Séries desfeitas.");
       }, "Desfazer") }, "Desfazer séries"));
     }
+    if (js.some(j => j.status === "encerrado" && !j.wo)) w.append(cartaoClassificacaoEtapa(etapaSel));
     return w;
   }
 

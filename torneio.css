@@ -171,3 +171,9 @@ body.modo-torneio header h1{display:none}
 :root[data-theme="dark"] .t-serie.s0 .t-serie-tit{color:#e6c04a}
 :root[data-theme="dark"] .t-serie.s1 .t-serie-tit{color:#c4c8cc}
 :root[data-theme="dark"] .t-serie.s2 .t-serie-tit{color:#e0a26b}
+/* classificação geral e final da etapa */
+.t-tab tr.podio td:first-child{font-weight:700}
+.t-tab tr.p1 td:first-child{color:#b8890b}
+.t-tab tr.p2 td:first-child{color:#7d848b}
+.t-tab tr.p3 td:first-child{color:#a5652b}
+.t-geral td{font-variant-numeric:tabular-nums}

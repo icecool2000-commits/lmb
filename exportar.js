@@ -167,7 +167,9 @@ export function montarDados(T, jogos, esporte) {
   if (!BIR) numeros.push(["Empates", empates, "na classificação"]);
   const porFase = fases.map(f => { const js = fim.filter(j => faseDe(j) === f); const p = js.reduce((s, j) => { const r = res(j); return s + r.pa + r.pb; }, 0); return { fase: f, n: js.length, med: js.length ? p / js.length : 0 }; });
   const jogados = fim.length ? new Set(fim.flatMap(j => [j.a, j.b])) : new Set();
-  return { T, BIR, etapas, numero, nome, res, faseDe, fim, reais, fases, equipes, atletas, numeros, porFase, jogados, atletasLbl: BIR ? "Bloq." : "Tocos" };
+  const geral = C.classificacaoGeral(esporte, T, jogos, nome);
+  etapas.forEach((e, i) => { e.final = geral.porEtapa[i]; });
+  return { T, BIR, etapas, numero, nome, res, faseDe, fim, reais, fases, equipes, atletas, numeros, porFase, jogados, geral, atletasLbl: BIR ? "Bloq." : "Tocos" };
 }
 
 /* ======================= GRÁFICOS (canvas → PNG, para o Excel) ======================= */
@@ -358,6 +360,21 @@ function chavePDF(doc, et, ch, logo, comPlacar) {
 }
 
 const rotTab = g => g.serie != null ? "da " + g.titulo : "do grupo " + g.letra;
+// classificação geral (todas as etapas) e final da etapa, em linhas de tabela
+const MED_TXT = ["Ouro", "Prata", "Bronze"];
+function geralTabela(D) {
+  const nE = D.T.etapas.length, serie = D.T.etapas.some(e => (e.series || []).length);
+  const head = ["#", "Equipe", ...D.T.etapas.map((e, i) => nE > 1 ? "Et. " + (i + 1) : "Etapa"), "J", "V", ...(D.BIR ? [] : ["E"]), "D", ...(D.BIR ? ["Sets"] : []), "Saldo", "PF", serie ? "Medalhas" : "Pódios"];
+  const body = D.geral.linhas.map((r, i) => [(i + 1) + "º", D.nome(r.eid), ...r.etapas.map(x => x ? x.pos + "º" + (x.completa ? "" : "*") : "–"), r.j, r.v, ...(D.BIR ? [] : [r.e]), r.d,
+    ...(D.BIR ? [r.sv + "–" + r.sp] : []), (r.saldo > 0 ? "+" : "") + r.saldo, r.pf, r.medalhas.map((n, k) => n ? n + " " + MED_TXT[k].toLowerCase() : "").filter(Boolean).join(", ") || "–"]);
+  return { head, body };
+}
+const rotFinal = x => (x.medalha ? MED_TXT[x.medalha - 1] + " – " : "") + (x.serie != null && !String(x.rot).startsWith("Série") ? C.SERIES[x.serie] + " · " : "") + (x.rot || "");
+function finalTabela(D, et) {
+  const head = ["#", "Equipe", "Chegou até", "V", "D", "Saldo"];
+  if (et.final && et.final.completa) return { head, body: et.final.ordem.map(x => [x.pos + "º", D.nome(x.eid), rotFinal(x), x.v, x.d, (x.saldo > 0 ? "+" : "") + x.saldo]), completa: true };
+  return { head, body: D.T.equipes.map((_, i) => [(i + 1) + "º", "", "", "", "", ""]), completa: false };
+}
 function linhasJogos(D, jogos, preencher) {
   return jogos.map(j => {
     const fimJ = j.status === "encerrado", r = D.res(j), num = D.numero[j.id];
@@ -422,6 +439,11 @@ export async function tabelaPDF(T, jogos, esporte, marca) {
         styles: { fontSize: 9, minCellHeight: 9, valign: "middle", lineColor: "#cfd6de", lineWidth: 0.15 }, columnStyles: { 0: { fontStyle: "bold", cellWidth: 38 } },
         didParseCell: d => { if (d.section === "head" && d.column.index > 0) d.cell.styles.fillColor = COR_MED[d.column.index - 1]; } }, logo);
     }
+    if (!et.vazio) {
+      const ft = finalTabela(D, et);
+      y = secao(doc, y, "Classificação final da etapa" + (ft.completa ? "" : " (preencha à mão)"), logo);
+      y = tabela(doc, y, { head: [ft.head], body: ft.body, styles: { fontSize: 8.4, minCellHeight: 7, halign: "center", lineColor: "#cfd6de", lineWidth: 0.15 }, columnStyles: { 1: { halign: "left", fontStyle: "bold", cellWidth: 60 }, 2: { halign: "left", cellWidth: 60 } } }, logo);
+    }
     et.chaves.forEach(ch => chavePDF(doc, et, ch, logo, true));
   });
   rodapes(doc);
@@ -446,6 +468,13 @@ export async function relatorioPDF(T, jogos, esporte, marca) {
   const pods = D.etapas.flatMap(e => e.podios.filter(p => p.p.some(Boolean)).map(p => [e.nome, p.titulo, ...[0, 1, 2].map(k => p.p[k] || "–")]));
   if (pods.length) { y = secao(doc, y, "Pódios", logo); y = tabela(doc, y, { head: [["Etapa", "Disputa", "1º lugar", "2º lugar", "3º lugar"]], body: pods, columnStyles: { 2: { fontStyle: "bold" } },
     didParseCell: d => { if (d.section === "head" && d.column.index > 1) d.cell.styles.fillColor = COR_MED[d.column.index - 2]; } }, logo); }
+  if (D.fim.length) {
+    const gt = geralTabela(D);
+    y = secao(doc, y, "Classificação geral", logo);
+    y = tabela(doc, y, { head: [gt.head], body: gt.body, styles: { fontSize: gt.head.length > 12 ? 6.8 : 7.8, halign: "center", cellPadding: 1.3, lineColor: "#cfd6de", lineWidth: 0.15 }, columnStyles: { 1: { halign: "left", fontStyle: "bold" } },
+      didParseCell: d => { if (d.section === "body" && d.row.index < 3 && d.column.index === 0) { d.cell.styles.fillColor = COR_MED[d.row.index]; d.cell.styles.textColor = "#fff"; d.cell.styles.fontStyle = "bold"; } } }, logo);
+    doc.setFontSize(7.5); doc.setTextColor("#6b7480"); doc.text("Critério: vitórias, " + (D.BIR ? "" : "empates, ") + "saldo de pontos e pontos feitos. Et. = colocação final em cada etapa (* = etapa em andamento).", 10, y - 2); doc.setTextColor("#1a1a1a"); y += 4;
+  }
   y = secao(doc, y, "Média de pontos de cada equipe (por jogo)", logo);
   const eqs = D.equipes.filter(e => e.n).sort((a, b) => b.mpf - a.mpf);
   y = barrasPDF(doc, y, eqs.map((e, i) => ({ nome: e.nome, v: e.mpf, txt: f1(e.mpf), extra: "sofre " + f1(e.mpc) + " · " + e.n + " jogos", hi: i === 0 })), {}, logo);
@@ -484,6 +513,12 @@ export async function relatorioPDF(T, jogos, esporte, marca) {
     const todos = jogos.filter(j => j.etapa === et.idx && !j.wo).sort((a, b) => (D.numero[a.id] || 0) - (D.numero[b.id] || 0));
     y = secao(doc, y, "Todos os jogos", logo);
     y = tabela(doc, y, { head: [cabJogos(D.BIR)], body: linhasJogos(D, todos, false).map((l, i) => { if (todos[i].fase === "mata") l[1] = todos[i].faseNome; return l; }), styles: { fontSize: D.BIR ? 7.6 : 6.8, halign: "center", cellPadding: 1.3, lineColor: "#cfd6de", lineWidth: 0.15 } }, logo);
+    if (et.final && et.final.ordem.length) {
+      const ft = finalTabela(D, et);
+      if (ft.completa) { y = secao(doc, y, "Classificação final da etapa", logo);
+        y = tabela(doc, y, { head: [ft.head], body: ft.body, styles: { fontSize: 8.2, halign: "center", lineColor: "#cfd6de", lineWidth: 0.15 }, columnStyles: { 1: { halign: "left", fontStyle: "bold" }, 2: { halign: "left" } },
+          didParseCell: d => { if (d.section === "body" && d.row.index < 3 && d.column.index === 0) { d.cell.styles.fillColor = COR_MED[d.row.index]; d.cell.styles.textColor = "#fff"; } } }, logo); }
+    }
     et.chaves.forEach(ch => chavePDF(doc, et, ch, logo, true));
   });
   // atletas por equipe
@@ -581,6 +616,9 @@ export async function tabelaXLSX(T, jogos, esporte, marca) {
       tituloSecao(ws, et.podios.some(p => p.serie != null) ? "Medalhas (ouro, prata e bronze)" : "Pódio", E);
       tabelaXL(ws, ["Disputa", "", "", "1º lugar", "", "", "2º lugar", "3º lugar"], et.podios.map(p => [p.titulo, "", "", p.p[0] || "", "", "", p.p[1] || "", p.p[2] || ""]), E, { esq: [0, 3, 6, 7], negrito: [0, 3], altura: 24, mesclas: [[0, 2], [3, 5]] });
     }
+    { const ft = finalTabela(D, et);
+      tituloSecao(ws, "Classificação final da etapa" + (ft.completa ? "" : " (preencha à mão)"), E);
+      tabelaXL(ws, ["#", "Equipe", "", "", "Chegou até", "", "", "V", "D", "Saldo"], ft.body.map(r => [r[0], r[1], "", "", r[2], "", "", r[3], r[4], r[5]]), E, { esq: [1, 4], negrito: [1], altura: 20, mesclas: [[1, 3], [4, 6]] }); }
     et.chaves.forEach(ch => chaveXL(wb, et, ch, D, marca, logo, E, T));
   });
   await salvarXL(wb, arquivo(T, "tabela-de-jogos.xlsx"));
@@ -651,6 +689,12 @@ export async function relatorioXLSX(T, jogos, esporte, marca) {
   tabelaXL(ws, ["Etapa", "Local · data · horário", "Campeã"], D.etapas.map(e => [e.nome, [e.local, fmtData(e.data), e.hora].filter(Boolean).join(" · "), e.campea || "–"]), E, { esq: [0, 1, 2], negrito: [2] });
   const podsX = D.etapas.flatMap(e => e.podios.filter(p => p.p.some(Boolean)).map(p => [e.nome + " · " + p.titulo, (p.p[0] || "–") + " / " + (p.p[1] || "–"), p.p[2] || "–"]));
   if (podsX.length) { tituloSecao(ws, "Pódios", E); tabelaXL(ws, ["Etapa · disputa", "1º / 2º lugar", "3º lugar"], podsX, E, { esq: [0, 1, 2], negrito: [1] }); }
+  if (D.fim.length) {
+    const gt = geralTabela(D);
+    ws = folha(wb, "Classificação geral", marca, logo, T.nome, "Classificação geral · vitórias, " + (D.BIR ? "" : "empates, ") + "saldo e pontos feitos · Et. = colocação final na etapa", [6, 26, ...gt.head.slice(2).map(() => 9)], true);
+    tituloSecao(ws, "Classificação geral", E);
+    tabelaXL(ws, gt.head, gt.body, E, { esq: [1], negrito: [0, 1], destaque: i => i < 3 });
+  }
   // Equipes
   const eqs = D.equipes.filter(e => e.n).sort((a, b) => b.mpf - a.mpf), fs = D.fases;
   ws = folha(wb, "Equipes", marca, logo, T.nome, "Pontos feitos (PF), tomados (PT) e saldo – por fase e geral", [24, ...[...fs, "Geral"].flatMap(() => [7, 7, 8]), 11, 11, 10], true);
@@ -669,6 +713,9 @@ export async function relatorioXLSX(T, jogos, esporte, marca) {
     const todos = jogos.filter(j => j.etapa === et.idx && !j.wo).sort((a, b) => (D.numero[a.id] || 0) - (D.numero[b.id] || 0));
     tituloSecao(ws, "Todos os jogos", E);
     tabelaXL(ws, cabJogos(D.BIR), linhasJogos(D, todos, false).map((l, i) => { if (todos[i].fase === "mata") l[1] = todos[i].faseNome; return l; }), E, { esq: [], negrito: D.BIR ? [3, 7] : [3, 11] });
+    if (et.final && et.final.completa) { const ft = finalTabela(D, et);
+      tituloSecao(ws, "Classificação final da etapa", E);
+      tabelaXL(ws, ["#", "Equipe", "", "", "Chegou até", "", "", "V", "D", "Saldo"], ft.body.map(r => [r[0], r[1], "", "", r[2], "", "", r[3], r[4], r[5]]), E, { esq: [1, 4], negrito: [1], destaque: i => i < 3, mesclas: [[1, 3], [4, 6]] }); }
     et.chaves.forEach(ch => chaveXL(wb, et, ch, D, marca, logo, E, T));
   });
   // Atletas
