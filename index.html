@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>LMB Torneios</title>
+<meta name="description" content="Torneios da Liga Metropolitana de Biribol: equipes, chaveamento, súmulas, estatísticas e exportação em PDF e Excel.">
+<meta name="theme-color" content="#0b2554">
+<link rel="stylesheet" href="torneio.css">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="LMB">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+/* Liga Metropolitana de Biribol: azul-marinho do escudo, azul da piscina e amarelo da bola */
+:root{
+  --bg:#eaf4fb; --surface:#ffffff; --fg:#0b2554; --muted:#4d6886;
+  --line:#cfe1ef; --accent:#1597dc; --accent-fg:#ffffff; --lane:#c08f00; --hi:#f6d20b; --danger:#cc3d33; --soft:#e2eff8; --ok:#1c9a57;
+  --navy:#0b2554; --amarelo:#f6d20b;
+  --display:"Anton",Impact,"Arial Narrow Bold",sans-serif;
+  --body:"Figtree",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%;padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+button,.btn{font:inherit;font-weight:600;border:0;border-radius:10px;padding:11px 14px;cursor:pointer;background:var(--accent);color:var(--accent-fg);white-space:nowrap;text-decoration:none;text-align:center}
+button.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+button.danger{background:transparent;color:var(--danger);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+select,input{font:inherit;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px;width:100%;min-width:0;font-size:16px}
+input:focus-visible,button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* topo com a piscina do cartaz */
+.hero{position:relative;color:#fff;background:var(--navy) url(fundo-topo.jpg) center/cover no-repeat;overflow:hidden;
+  padding-top:calc(16px + env(safe-area-inset-top,0px));padding-bottom:22px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgb(11 37 84 / .25),rgb(11 37 84 / .85))}
+.hero::after{content:"";position:absolute;left:-40px;top:-30px;width:200px;height:120px;background:repeating-linear-gradient(115deg,var(--amarelo) 0 10px,transparent 10px 22px,#1597dc 22px 32px,transparent 32px 44px);opacity:.85;transform:rotate(-8deg)}
+.hero-in{position:relative;z-index:1;max-width:640px;margin:0 auto;display:flex;align-items:center;gap:14px}
+.hero img{width:96px;height:96px;flex:0 0 auto;filter:drop-shadow(0 4px 10px rgb(0 0 0 / .35))}
+.hero h1{margin:0;font-family:var(--display);font-weight:400;text-transform:uppercase;line-height:.95;font-size:clamp(24px,7vw,34px);font-style:italic;letter-spacing:.01em}
+.hero h1 span{display:block;color:var(--amarelo);font-size:1.25em}
+.hero p{margin:6px 0 0;font-size:13px;opacity:.9}
+.faixa{height:6px;background:linear-gradient(90deg,var(--navy) 0 33%,var(--accent) 33% 66%,var(--amarelo) 66%)}
+.admin-pill{position:absolute;right:max(12px,env(safe-area-inset-right,0px));top:calc(10px + env(safe-area-inset-top,0px));z-index:2;font-size:12px;font-weight:700;color:var(--navy);background:var(--amarelo);border-radius:999px;padding:3px 10px}
+.wrap{max-width:640px;margin:0 auto;padding-block:16px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+/* peças usadas pelo modo torneio */
+.cap{margin:2px 0 8px;font-size:13px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{background:var(--surface);color:var(--fg);border:1px solid var(--line);padding:7px 12px;font-size:14px}
+.chips button[aria-pressed="true"]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.tablebox{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 12px 10px;min-width:0;box-shadow:0 1px 2px rgb(11 37 84 / .05)}
+.card h3{margin:0;font-size:15px;font-weight:700}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{background:var(--soft);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:0}
+.tile span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.tile b{display:block;font-family:var(--display);font-weight:400;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--navy)}
+.tile small{display:block;font-size:12px;color:var(--muted)}
+.hbars{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.hb{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:center;gap:0 8px}
+.hb .pos{font-family:var(--display);font-size:16px;color:var(--muted);text-align:center;align-self:center;line-height:1}
+.hb.p1 .pos{color:var(--lane)}
+.hb .nm{font-size:14px;font-weight:600;overflow-wrap:anywhere;line-height:1.2}
+.hb .trk{grid-column:2/3;height:12px;border-radius:0 4px 4px 0;background:var(--soft);overflow:hidden}
+.hb .trk i{display:block;height:100%;border-radius:0 4px 4px 0;background:var(--accent)}
+.hb.p1 .trk i{background:var(--hi)}
+.hb .q{grid-row:1/3;grid-column:3;text-align:right;font-variant-numeric:tabular-nums;min-width:52px}
+.hb .q b{display:block;font-size:17px}
+.hb .q small{color:var(--muted);font-size:12px}
+.linkish{background:none;border:0;color:var(--accent);padding:0;font-weight:600;text-decoration:underline;cursor:pointer}
+footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding-top:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--navy);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;max-width:calc(100% - 32px);text-align:center;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.install{background:var(--soft);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px}
+.install p{margin:0}
+/* ajustes do modo torneio para a identidade da liga */
+.t-abas button[aria-selected="true"]{background:var(--navy);color:#fff}
+.t-gtit{background:var(--navy);color:#fff;font-style:italic}
+.t-gtit::first-letter{color:var(--amarelo)}
+.t-h{color:var(--navy);font-style:italic}
+.t-titulo{font-style:italic;color:var(--navy)}
+.t-trofeu{border-color:var(--amarelo);background:#fff8cc}
+.t-pe.venc b{color:var(--accent)}
+.t-modal-sum{background:var(--bg)}
+</style>
+</head>
+<body>
+<header class="hero">
+  <span class="admin-pill" id="admin-pill" hidden>Organizador</span>
+  <div class="hero-in">
+    <img src="logo.png" alt="Liga Metropolitana de Biribol" width="96" height="96">
+    <div>
+      <h1>Liga Metropolitana <span>de Biribol</span></h1>
+      <p>Torneios, chaves, súmulas e estatísticas</p>
+    </div>
+  </div>
+</header>
+<div class="faixa" aria-hidden="true"></div>
+
+<div class="wrap">
+  <div id="torneio-root" class="t-col"></div>
+
+  <div class="t-card" id="ed-painel" hidden>
+    <h3>Editores do torneio</h3>
+    <p class="cap">Crie um usuário e senha para cada pessoa que vai montar o torneio e marcar placar. Remover tira o acesso na hora.</p>
+    <div class="ed-lista" id="ed-lista"></div>
+    <form id="ed-form" class="t-form">
+      <div class="t-linha">
+        <input id="ed-nome" placeholder="Nome (ex.: Clayton)" maxlength="30" aria-label="Nome do editor">
+        <input id="ed-usuario" placeholder="Usuário (ex.: clayton)" maxlength="30" autocomplete="off" autocapitalize="none" aria-label="Usuário">
+        <input id="ed-senha" placeholder="Senha (mín. 6)" maxlength="40" autocomplete="new-password" aria-label="Senha do editor">
+      </div>
+      <button type="submit" id="ed-criar">Criar acesso de editor</button>
+    </form>
+  </div>
+
+  <div class="install" id="install" hidden><p><b>Instale o app no celular</b></p><p id="install-text"></p><button type="button" id="btn-install" hidden>Instalar</button></div>
+
+  <footer>
+    <button type="button" class="linkish" id="btn-admin">Entrar como organizador</button>
+    <button type="button" class="linkish" id="btn-editor">Entrar como editor</button>
+    <button type="button" class="linkish" id="btn-editores" hidden>Editores</button>
+    <span id="ed-quem" hidden></span>
+    <button type="button" class="linkish" id="btn-senha" hidden>Trocar senha</button>
+    <button type="button" class="linkish" id="btn-logout" hidden>Sair</button>
+  </footer>
+  <div class="acesso" id="acesso" hidden>
+    <form id="form-editor" class="t-card" hidden>
+      <h3>Entrar como editor</h3>
+      <input id="lg-usuario" placeholder="Usuário" autocomplete="username" autocapitalize="none" aria-label="Usuário">
+      <input id="lg-senha" type="password" placeholder="Senha" autocomplete="current-password" aria-label="Senha">
+      <div class="t-linha"><button type="submit">Entrar</button><button type="button" class="ghost" id="lg-cancelar">Cancelar</button></div>
+    </form>
+    <form id="form-senha" class="t-card" hidden>
+      <h3>Trocar minha senha</h3>
+      <input id="nv-senha" type="password" placeholder="Nova senha (mín. 6)" autocomplete="new-password" aria-label="Nova senha">
+      <div class="t-linha"><button type="submit">Salvar senha</button><button type="button" class="ghost" id="nv-cancelar">Cancelar</button></div>
+    </form>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { firebaseConfig, ADMIN_EMAILS } from "./config.js";
+import { montarTorneio } from "./torneio.js";
+import { DOMINIO, entrarEditor, trocarSenha, criarEditor, ouvirEditores, ouvirSouEditor, removerEditor, usuarioDe } from "./acesso.js";
+
+const app = initializeApp(firebaseConfig), auth = getAuth(app);
+let db; try { db = initializeFirestore(app, { localCache: persistentLocalCache() }); } catch (e) { db = initializeFirestore(app, {}); }
+const $ = id => document.getElementById(id);
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove("on"),3200); }
+
+let user=null, isAdmin=false, isEditor=false, pararEditor=null, pararLista=null;
+const torneio = montarTorneio({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch }, esporte:"biribol", col:"lmb_torneios", maxAtletas:8, toast,
+  root:$("torneio-root"), podeEditar:()=>isAdmin||isEditor, nomeDemo:"Liga Metropolitana de Biribol",
+  marca:{ titulo:"Liga Metropolitana de Biribol", logo:"logo.png", escura:"#0b2554", cor:"#1597dc", destaque:"#f6d20b" } });
+
+/* ---------- login ---------- */
+$("btn-admin").onclick = async ()=>{
+  const prov = new GoogleAuthProvider(); prov.setCustomParameters({prompt:"select_account"});
+  try{ await signInWithPopup(auth, prov); }
+  catch(e){ if (e && (e.code==="auth/popup-blocked" || e.code==="auth/operation-not-supported-in-this-environment")) await signInWithRedirect(auth, prov);
+    else if (e && e.code!=="auth/popup-closed-by-user" && e.code!=="auth/cancelled-popup-request") toast("Não deu para entrar. Tente de novo."); }
+};
+getRedirectResult(auth).catch(()=>{});
+$("btn-logout").onclick = async ()=>{ fecharAcesso(); await signOut(auth); };
+onAuthStateChanged(auth, async u=>{
+  if (pararEditor){ pararEditor(); pararEditor=null; }
+  if (!u){ user=null; isAdmin=false; isEditor=false; atualizar(); try{ await signInAnonymously(auth); }catch(e){ toast("Sem conexão com o servidor."); } return; }
+  user=u; isEditor=false; isAdmin = !u.isAnonymous && ADMIN_EMAILS.includes((u.email||"").toLowerCase());
+  if (!u.isAnonymous && !isAdmin){
+    if ((u.email||"").endsWith(DOMINIO)) pararEditor = ouvirSouEditor(db, u.uid, async ok=>{ if (!ok){ toast("Seu acesso de editor foi removido."); await signOut(auth); return; } isEditor=true; atualizar(); });
+    else { toast("Essa conta não é de organizador."); await signOut(auth); return; }
+  }
+  atualizar();
+});
+function fecharAcesso(){ $("acesso").hidden=true; $("form-editor").hidden=true; $("form-senha").hidden=true; }
+function atualizar(){
+  const ed = isEditor && user && !user.isAnonymous;
+  $("admin-pill").hidden = !(isAdmin||isEditor); $("admin-pill").textContent = isAdmin ? "Organizador" : "Editor";
+  $("btn-admin").hidden = isAdmin||ed; $("btn-editor").hidden = isAdmin||ed;
+  $("btn-logout").hidden = !(isAdmin||ed); $("btn-logout").textContent = isAdmin ? "Sair do modo organizador" : "Sair";
+  $("btn-senha").hidden = !ed; $("ed-quem").hidden = !ed; if (ed) $("ed-quem").textContent = "Editor: " + usuarioDe(user.email);
+  $("btn-editores").hidden = !isAdmin;
+  if (!isAdmin){ $("ed-painel").hidden = true; if (pararLista){ pararLista(); pararLista=null; } }
+  torneio.atualizarPermissao();
+}
+$("btn-editor").onclick=()=>{ $("acesso").hidden=false; $("form-senha").hidden=true; $("form-editor").hidden=false; $("lg-usuario").focus(); };
+$("lg-cancelar").onclick=fecharAcesso; $("nv-cancelar").onclick=fecharAcesso;
+$("form-editor").addEventListener("submit", async e=>{ e.preventDefault();
+  try{ await entrarEditor(auth, $("lg-usuario").value, $("lg-senha").value); $("lg-senha").value=""; fecharAcesso(); toast("Bem-vindo! Você pode editar o torneio."); }
+  catch(err){ toast("Usuário ou senha incorretos."); } });
+$("btn-senha").onclick=()=>{ $("acesso").hidden=false; $("form-editor").hidden=true; $("form-senha").hidden=false; $("nv-senha").focus(); };
+$("form-senha").addEventListener("submit", async e=>{ e.preventDefault();
+  const n=$("nv-senha").value; if (n.length<6){ toast("A senha precisa ter pelo menos 6 caracteres."); return; }
+  try{ await trocarSenha(auth, n); $("nv-senha").value=""; fecharAcesso(); toast("Senha trocada."); }
+  catch(err){ toast(err && err.code==="auth/requires-recent-login" ? "Saia e entre de novo para trocar a senha." : "Não deu para trocar a senha."); } });
+$("btn-editores").onclick=()=>{
+  const p=$("ed-painel"); p.hidden=!p.hidden;
+  if (!p.hidden){ p.scrollIntoView({behavior:"smooth", block:"start"}); if (!pararLista) pararLista = ouvirEditores(db, lista=>{
+    const box=$("ed-lista"); box.textContent="";
+    if (!lista.length){ const x=document.createElement("p"); x.className="cap"; x.textContent="Nenhum editor ainda."; box.append(x); }
+    lista.forEach(ed=>{ const row=document.createElement("div"); row.className="ed-item";
+      const t=document.createElement("div"); const b=document.createElement("b"); b.textContent=ed.nome; const sm=document.createElement("small"); sm.textContent=" · usuário: "+ed.usuario; t.append(b,sm);
+      const rm=document.createElement("button"); rm.type="button"; rm.className="danger t-mini"; rm.textContent="Remover";
+      let armado=false; rm.onclick=async ()=>{ if(!armado){ armado=true; rm.textContent="Confirmar remoção"; setTimeout(()=>{ armado=false; rm.textContent="Remover"; },4000); return; }
+        try{ await removerEditor(db, ed.uid); toast("Acesso de "+ed.nome+" removido."); }catch(e){ toast("Não deu para remover."); } };
+      row.append(t,rm); box.append(row); }); }); }
+};
+$("ed-form").addEventListener("submit", async e=>{ e.preventDefault();
+  const nome=$("ed-nome").value.trim(), usuario=$("ed-usuario").value, senha=$("ed-senha").value; $("ed-criar").disabled=true;
+  try{ const u = await criarEditor(firebaseConfig, db, { usuario, nome, senha });
+    const texto = "Acesso de editor – Liga Metropolitana de Biribol\nApp: "+location.origin+location.pathname+"\nNo app: Entrar como editor\nUsuário: "+u+"\nSenha: "+senha+"\n(Troque a senha no primeiro acesso em \"Trocar senha\".)";
+    try{ await navigator.clipboard.writeText(texto); toast("Editor criado. Dados copiados para enviar."); }catch(_){ toast("Editor criado: usuário "+u+"."); }
+    $("ed-nome").value=""; $("ed-usuario").value=""; $("ed-senha").value="";
+  }catch(err){ const c=(err&&(err.code||err.message))||""; toast(c.includes("email-already-in-use")?"Esse usuário já existe.":c.includes("usuario-curto")?"Usuário precisa de pelo menos 3 letras.":c.includes("senha-curta")||c.includes("weak-password")?"Senha precisa ter pelo menos 6 caracteres.":"Não deu para criar o editor."); }
+  $("ed-criar").disabled=false; });
+
+/* ---------- instalar ---------- */
+const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone; let deferred=null;
+if (!standalone){ const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  if (ios){ $("install").hidden=false; $("install-text").textContent="No iPhone: toque em Compartilhar e depois em \"Adicionar à Tela de Início\"."; }
+  else if (/android/i.test(navigator.userAgent)){ $("install").hidden=false; $("install-text").textContent="No Android: toque em ⋮ no Chrome e depois em \"Adicionar à tela inicial\"."; } }
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferred=e; $("install").hidden=false; $("btn-install").hidden=false; $("install-text").textContent="Tenha a LMB na tela inicial, como um app."; });
+$("btn-install").onclick = async ()=>{ if(!deferred) return; deferred.prompt(); await deferred.userChoice; deferred=null; $("install").hidden=true; };
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
