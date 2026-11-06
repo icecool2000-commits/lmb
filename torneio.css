@@ -149,3 +149,25 @@ body.modo-torneio header h1{display:none}
 .t-exp b{font-size:14px;line-height:1.2}
 .t-exp small{font-size:12px;color:var(--muted);font-weight:400}
 .t-exp:hover:not(:disabled){border-color:var(--accent)}
+/* 3º lugar, pódio e séries (Ouro / Prata / Bronze) */
+.t-terc{max-width:260px}
+.t-terc .t-rodtit{text-align:left;color:#a5652b}
+.t-terc .t-jogo{border-color:#c8894f}
+.t-podio{display:flex;flex-direction:column;gap:8px}
+.t-podio-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.t-podio-l li{display:grid;grid-template-columns:30px 70px minmax(0,1fr);align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--soft);border:1px solid var(--line)}
+.t-podio-l li.p0{border-color:#d4a514}
+.t-podio-l li.p1{border-color:#9ea3a8}
+.t-podio-l li.p2{border-color:#c8894f}
+.t-podio-l li.vazio b{color:var(--muted);font-weight:500}
+.t-medalha{font-size:22px;line-height:1}
+.t-serie{display:flex;flex-direction:column;gap:10px;padding-top:6px}
+.t-serie-tit{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.t-serie-tit small{font-size:12px;font-weight:500;color:var(--muted)}
+.t-serie.s0 .t-serie-tit{color:#a8800c}
+.t-serie.s1 .t-serie-tit{color:#6f757b}
+.t-serie.s2 .t-serie-tit{color:#a5652b}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .t-serie.s0 .t-serie-tit{color:#e6c04a}:root:not([data-theme="light"]) .t-serie.s1 .t-serie-tit{color:#c4c8cc}:root:not([data-theme="light"]) .t-serie.s2 .t-serie-tit{color:#e0a26b}}
+:root[data-theme="dark"] .t-serie.s0 .t-serie-tit{color:#e6c04a}
+:root[data-theme="dark"] .t-serie.s1 .t-serie-tit{color:#c4c8cc}
+:root[data-theme="dark"] .t-serie.s2 .t-serie-tit{color:#e0a26b}

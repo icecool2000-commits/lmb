@@ -6,15 +6,19 @@ function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10139
 
 const NOMES = ["Adriano","Bruno","Caio","Danilo","Eduardo","Fábio","Gustavo","Heitor","Igor","João","Kauã","Leandro","Marcelo","Nícolas","Otávio","Paulo","Rafael","Sérgio","Tiago","Vinícius","Wagner","Yuri","André","Beto","Cláudio","Diego","Émerson","Felipe","Gabriel","Hugo","Ivan","Júlio","Lucas","Mateus","Nelson","Osmar","Pedro","Renato","Samuel","Túlio","Ulisses","Vitor","Willian","Alex","Breno","César","Davi","Enzo","Flávio","Guilherme","Henrique","Isaque","Jonas","Léo","Murilo","Nando","Orlando","Pietro","Ronaldo","Saulo","Teo","Valter","Xande","Zeca","Álvaro","Bento","Cristiano","Douglas","Elias","Fernando","Geraldo","Hélio","Ítalo","Jairo","Kleber","Luan","Márcio","Natan","Oscar","Paulinho","Rodrigo","Silvio","Thiago","Vagner"];
 const SOBRE = ["Silva","Souza","Oliveira","Santos","Lima","Pereira","Costa","Ribeiro","Alves","Carvalho","Gomes","Martins","Rocha","Barbosa","Moreira","Teixeira","Freitas","Mendes","Cardoso","Nunes"];
-const EQ_BIRIBOL = ["Tubarões da AEM","Piratas do Lago","Golfinhos Mococa","Arraias FC","Marlins","Orcas","Lontras","Baleias Azuis"];
+const EQ_BIRIBOL = ["Tubarões da AEM","Piratas do Lago","Golfinhos Mococa","Arraias FC","Marlins","Orcas","Lontras","Baleias Azuis","Focas","Polvos","Tritões","Moreias","Siris","Peixe-Espada","Barracudas","Cavalos-Marinhos","Pinguins","Ariranhas","Jacarés","Garoupas","Pirarucus","Dourados","Lambaris","Tilápias"];
+const EQ_LIGA = ["Tubarões da AEM","Piratas de Casa Branca","Golfinhos Mococa","Arraias de Itobi","Marlins de Tambaú","Orcas de Vargem","Lontras de São José","Baleias Azuis","Peixe-Espada Caconde","Barracudas de Guaxupé","Moreias de Arceburgo","Tritões de Mococa","Focas de Mogi Mirim","Polvos de Aguaí","Siris de Pirassununga","Garoupas de Porto Ferreira","Ariranhas de Guaranésia","Jacarés de São João","Dourados de Santa Rosa","Pirarucus de Divinolândia","Cavalos-Marinhos de Mococa","Pinguins de Tapiratiba","Lambaris de Muzambinho","Tilápias de Leme"];
 const EQ_BASQUETE = ["Dinos","Raptors Mococa","Trovões","Falcões","Lobos da AEM","Panteras","Gaviões","Tigres","Corujas","Leões do Vale"];
 
-export function gerarDemo(esporte, nomeDemo) {
+export function gerarDemo(esporte, nomeDemo, opts = {}) {
+  const SER = !!opts.series;
   const BIR = esporte === "biribol", R = rng(BIR ? 2026 : 1977);
   const int = (a, b) => a + Math.floor(R() * (b - a + 1));
-  const nEq = BIR ? 8 : 10, nAt = BIR ? 8 : 10;
+  // Liga e Biribol: 24 equipes em 8 grupos de 3 -> todas as fases completas (Biribol: oitavas, quartas, semi, 3º e final;
+  // Liga: séries de 8 equipes com quartas, semi, 3º lugar e final)
+  const nEq = BIR ? 24 : 10, nAt = BIR ? 8 : 10;
   let ni = 0;
-  const equipes = (BIR ? EQ_BIRIBOL : EQ_BASQUETE).slice(0, nEq).map((nome, e) => {
+  const equipes = (SER ? EQ_LIGA : BIR ? EQ_BIRIBOL : EQ_BASQUETE).slice(0, nEq).map((nome, e) => {
     const nums = C.embaralhar(Array.from({ length: 30 }, (_, i) => i + 1), R).slice(0, nAt).sort((a, b) => a - b);
     return { id: "demo-e" + e, nome, atletas: nums.map((num, k) => ({ id: "demo-e" + e + "a" + k, num, nome: NOMES[(ni++ * 7) % NOMES.length] + " " + SOBRE[(e * 3 + k) % SOBRE.length][0] + "." })) };
   });
@@ -23,8 +27,9 @@ export function gerarDemo(esporte, nomeDemo) {
   const peso = {}; equipes.forEach(e => e.atletas.forEach((a, k) => peso[a.id] = k < 3 ? 3 + R() * 3 : k < 6 ? 1 + R() * 2 : 0.2 + R()));
 
   const etapas = [
-    { id: "demo-s1", nome: "1ª etapa", local: "AEM", data: "2026-11-21", hora: BIR ? "19:00" : "10:00", grupos: [], classificam: 2, sorteio: "auto" },
+    { id: "demo-s1", nome: "1ª etapa", local: "AEM", data: "2026-11-21", hora: BIR ? "19:00" : "10:00", grupos: [], classificam: 2, sorteio: "auto", ...(SER ? { formato: "series", disputaSeries: "auto", series: [] } : {}) },
     { id: "demo-s2", nome: "2ª etapa", local: "AEM", data: "2026-12-12", hora: BIR ? "19:00" : "10:00", grupos: [], classificam: null, sorteio: "direto" }];
+  if (BIR) Object.assign(etapas[1], { classificam: 2, sorteio: "auto" }, SER ? { formato: "series", disputaSeries: "auto", series: [] } : {});
 
   const jogos = [];
   let extremosFeitos = { max: false, min: false };
@@ -97,38 +102,48 @@ export function gerarDemo(esporte, nomeDemo) {
   }
   const jogar = (j, mata) => BIR ? jogarBiribol(j) : jogarBasquete(j, mata);
 
-  // ---- 1ª etapa: grupos + mata-mata ----
-  const ids = C.embaralhar(equipes.map(e => e.id), R);
-  const nG = C.sugerirGrupos(nEq), grupos = C.distribuir(ids, nG);
-  etapas[0].grupos = C.gruposParaSalvar(grupos); etapas[0].classificam = C.sugerirClassificados(nEq, nG);
-  let ordem = 0;
-  grupos.forEach((g, gi) => C.todosContraTodos(g).forEach((par, r) => par.forEach(([a, b], o) => {
-    const j = { id: "demo-j" + (ordem++), etapa: 0, fase: "grupo", grupo: gi, rodada: r + 1, ordem: o, a, b, faseNome: "Grupo " + C.letraGrupo(gi), stats: {} };
-    jogar(j, false); jogos.push(j);
-  })));
   const nomeDe = id => eqDe(id).nome;
-  const porGrupo = grupos.map((g, gi) => C.classificacao(esporte, g, jogos.filter(j => j.etapa === 0 && j.grupo === gi), nomeDe).slice(0, etapas[0].classificam));
-  mataMata(0, C.ordenarQualificados(porGrupo));
-  // ---- 2ª etapa: mata-mata direto (ordem de campanha da 1ª etapa) ----
-  const camp = C.classificacao(esporte, equipes.map(e => e.id), jogos, nomeDe);
-  mataMata(1, camp.map((r, i) => ({ eid: r.eid, grupo: null, pos: i + 1 })));
+  let ordem = 0;
+  // etapa com grupos: todos contra todos, depois séries (Liga) ou mata-mata
+  function etapaGrupos(ei, nG, q) {
+    const grupos = C.distribuir(C.embaralhar(equipes.map(e => e.id), R), nG);
+    etapas[ei].grupos = C.gruposParaSalvar(grupos); etapas[ei].classificam = q;
+    grupos.forEach((g, gi) => C.todosContraTodos(g).forEach((par, r) => par.forEach(([a, b], o) => {
+      const j = { id: "demo-j" + (ordem++), etapa: ei, fase: "grupo", grupo: gi, rodada: r + 1, ordem: o, a, b, faseNome: "Grupo " + C.letraGrupo(gi), stats: {} };
+      jogar(j, false); jogos.push(j);
+    })));
+    const porGrupo = grupos.map((g, gi) => C.classificacao(esporte, g, jogos.filter(j => j.etapa === ei && j.grupo === gi), nomeDe).slice(0, q));
+    if (SER) {
+      // Liga: 1ºs na Série Ouro, 2ºs na Prata, 3ºs na Bronze
+      const series = C.montarSeries(porGrupo, 3, false);
+      etapas[ei].series = series;
+      series.forEach((s, si) => mataMata(ei, s.equipes.map(eid => ({ eid, grupo: null })), { serie: si, prefixo: C.SERIES[si] + " · " }));
+    } else mataMata(ei, C.ordenarQualificados(porGrupo));
+  }
+  if (BIR) { etapaGrupos(0, 8, SER ? 3 : 2); etapaGrupos(1, 8, SER ? 3 : 2); }
+  else {
+    // Basquete: 1ª etapa com grupos; 2ª etapa mata-mata direto (ordem de campanha da 1ª)
+    etapaGrupos(0, C.sugerirGrupos(nEq), C.sugerirClassificados(nEq, C.sugerirGrupos(nEq)));
+    const camp = C.classificacao(esporte, equipes.map(e => e.id), jogos, nomeDe);
+    mataMata(1, camp.map((r, i) => ({ eid: r.eid, grupo: null, pos: i + 1 })));
+  }
 
-  function mataMata(ei, qual) {
-    const pares = C.primeiraRodada(qual); let ant = [], rodada = 1;
-    pares.forEach(([x, y], o) => {
-      const a = x ? x.eid : null, b = y ? y.eid : null;
-      const j = { id: "demo-j" + (ordem++), etapa: ei, fase: "mata", rodada, ordem: o, a: a || b, b: a && b ? b : null, faseNome: C.nomeFase(pares.length), stats: {} };
-      if (!a || !b) { j.wo = a || b; j.status = "encerrado"; j.venc = j.wo; if (BIR) j.sets = []; else j.periodos = []; }
-      else jogar(j, true);
-      ant.push(j); jogos.push(j);
-    });
-    while (ant.length > 1) {
-      rodada++; const prox = [];
-      for (let i = 0; i < ant.length; i += 2) {
-        const j = { id: "demo-j" + (ordem++), etapa: ei, fase: "mata", rodada, ordem: i / 2, a: ant[i].venc, b: ant[i + 1].venc, de: [ant[i].id, ant[i + 1].id], faseNome: C.nomeFase(ant.length / 2), stats: {} };
-        jogar(j, true); prox.push(j); jogos.push(j);
-      }
-      ant = prox;
+  function mataMata(ei, qual, extra = {}) {
+    const est = C.estruturaChave(qual, () => "demo-j" + (ordem++)), pre = extra.prefixo || "", base = extra.serie != null ? { serie: extra.serie } : {};
+    const porId = {};
+    est.rodadas.forEach((rod, ri) => rod.forEach(m => {
+      const j = { id: m.id, etapa: ei, fase: "mata", ...base, rodada: m.rodada, ordem: m.ordem, faseNome: pre + C.nomeFase(rod.length), stats: {} };
+      if (ri === 0) {
+        const a = m.x ? m.x.eid : null, b = m.y ? m.y.eid : null;
+        j.a = a || b; j.b = a && b ? b : null;
+        if (!a || !b) { j.wo = a || b; j.status = "encerrado"; j.venc = j.wo; if (BIR) j.sets = []; else j.periodos = []; porId[j.id] = j; jogos.push(j); return; }
+      } else { j.de = m.de; j.a = porId[m.de[0]].venc; j.b = porId[m.de[1]].venc; }
+      jogar(j, true); porId[j.id] = j; jogos.push(j);
+    }));
+    if (est.terceiro) {
+      const t = est.terceiro, perd = id => { const x = porId[id]; return x.venc === x.a ? x.b : x.a; };
+      const j = { id: t.id, etapa: ei, fase: "mata", ...base, rodada: t.rodada, ordem: t.ordem, perd: t.perd, a: perd(t.perd[0]), b: perd(t.perd[1]), faseNome: pre ? pre + "3º lugar" : C.TERCEIRO, stats: {} };
+      jogar(j, true); jogos.push(j);
     }
   }
 

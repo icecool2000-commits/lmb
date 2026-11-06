@@ -183,3 +183,65 @@ export function statsAtletas(jogos) {
 // Firestore não aceita lista dentro de lista: os grupos ficam salvos como [{equipes:[...]}]
 export const gruposDe = et => ((et && et.grupos) || []).map(g => Array.isArray(g) ? g : (g.equipes || []));
 export const gruposParaSalvar = gs => gs.map(g => ({ equipes: g }));
+
+/* ---------- chave completa (com disputa de 3º lugar) ---------- */
+export const SERIES = ["Série Ouro", "Série Prata", "Série Bronze"];
+export const MEDALHAS = ["Ouro", "Prata", "Bronze"];
+export const TERCEIRO = "Disputa de 3º lugar";
+export const ORDEM_FASES = ["Classificação", "Série Ouro", "Série Prata", "Série Bronze", "16 avos de final", "Oitavas de final", "Quartas de final", "Semifinal", TERCEIRO, "Final"];
+export const faseEstat = j => j.fase === "grupo" ? "Classificação" : j.serie != null ? SERIES[j.serie] : j.faseNome;
+
+// Estrutura do mata-mata a partir dos classificados (qualquer objeto com .grupo).
+// rodadas: [[{id, rodada, ordem, x, y, bye, de}]]; terceiro: jogo dos perdedores das semifinais (se houver semifinal real)
+export function estruturaChave(qual, novoId) {
+  const pares = primeiraRodada(qual), rodadas = [];
+  let ant = pares.map(([x, y], o) => ({ id: novoId(), rodada: 1, ordem: o, x, y, bye: !(x && y) }));
+  rodadas.push(ant);
+  let r = 1;
+  while (ant.length > 1) {
+    r++; const prox = [];
+    for (let i = 0; i < ant.length; i += 2) prox.push({ id: novoId(), rodada: r, ordem: i / 2, de: [ant[i].id, ant[i + 1].id] });
+    rodadas.push(prox); ant = prox;
+  }
+  let terceiro = null;
+  if (rodadas.length >= 2) {
+    const semis = rodadas[rodadas.length - 2];
+    if (semis.length === 2 && semis.every(s => !s.bye)) terceiro = { id: novoId(), rodada: r, ordem: 1, perd: [semis[0].id, semis[1].id] };
+  }
+  return { rodadas, terceiro };
+}
+
+// tipo de disputa dentro de uma série, conforme o número de equipes
+export const tipoSerie = n => n <= 2 ? "final" : n === 3 ? "todos" : "mata";
+
+// pódio de uma chave de mata-mata (lista de jogos já com resultado)
+export function podioMata(esporte, js) {
+  const fin = js.filter(j => !j.perd);
+  if (!fin.length) return [];
+  const maxR = Math.max(...fin.map(j => j.rodada));
+  const final = fin.find(j => j.rodada === maxR), t = js.find(j => j.perd);
+  const p = [null, null, null];
+  if (final && final.status === "encerrado") { const r = resultado(esporte, final); if (r.venc) { p[0] = r.venc; p[1] = r.venc === final.a ? final.b : final.a; } }
+  if (t && t.status === "encerrado") { const r = resultado(esporte, t); if (r.venc) p[2] = r.venc; }
+  return p;
+}
+
+// pódio de uma série: todos contra todos -> classificação (quando todos os jogos acabarem); senão, chave
+export function podioSerie(esporte, serie, js, nomeDe) {
+  if (serie.tipo === "todos") {
+    if (!js.length || js.some(j => j.status !== "encerrado")) return [];
+    return classificacao(esporte, serie.equipes, js, nomeDe).slice(0, 3).map(r => r.eid);
+  }
+  return podioMata(esporte, js);
+}
+
+// classificados de cada série: posição p (0 = 1º) de cada grupo, já na ordem de campanha
+export function montarSeries(porGrupo /* [[rows classificados]] */, nSeries, todosSempre) {
+  const ord = ordenarQualificados(porGrupo), out = [];
+  for (let p = 0; p < nSeries; p++) {
+    const eqs = ord.filter(r => r.pos === p + 1).map(r => r.eid);
+    if (!eqs.length) continue;
+    out.push({ equipes: eqs, tipo: todosSempre && eqs.length >= 3 ? "todos" : tipoSerie(eqs.length) });
+  }
+  return out;
+}

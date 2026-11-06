@@ -40,6 +40,8 @@ export function montarTorneio(ctx) {
   const jogoRef = jid => doc(db, col, T.id, "jogos", jid);
   const jogosEtapa = i => jogos.filter(j => j.etapa === i);
   const res = j => C.resultado(esporte, j);
+  const MED = ["🥇", "🥈", "🥉"];
+  const SERIES_OK = !!ctx.formatoSeries; // Liga: 3 primeiros de cada grupo formam as séries Ouro, Prata e Bronze
 
   /* ---------- dados ---------- */
   onSnapshot(collection(db, col), snap => {
@@ -156,6 +158,8 @@ export function montarTorneio(ctx) {
     t += " · passam " + q + (g > 1 ? " de cada grupo" : "") + " → " + C.nomeFase(K / 2).toLowerCase();
     if (n % 2) t += " · número ímpar: " + (g > 1 ? "grupos de tamanhos diferentes e " : "") + "uma equipe folga em cada rodada";
     if (byes) t += " · " + byes + " melhor(es) campanha(s) passa(m) direto (bye)";
+    if (K >= 4) t += " · com disputa de 3º lugar";
+    if (SERIES_OK && n >= 6) { const g2 = Math.max(2, g), t2 = C.tamanhosGrupos(n, g2); return "Sugestão da Liga: " + g2 + " grupos de " + [...new Set(t2)].join(" e ") + " equipes · os 3 primeiros de cada grupo vão para as séries Ouro (1ºs), Prata (2ºs) e Bronze (3ºs)."; }
     return t + ".";
   }
 
@@ -165,7 +169,7 @@ export function montarTorneio(ctx) {
   async function criarDemo() {
     const id = "demo-" + Date.now().toString(36);
     try {
-      const { torneio, jogos: js } = gerarDemo(esporte, ctx.nomeDemo);
+      const { torneio, jogos: js } = gerarDemo(esporte, ctx.nomeDemo, { series: SERIES_OK });
       const b = writeBatch(db);
       b.set(doc(db, col, id), torneio);
       js.forEach(({ id: jid, ...d }) => b.set(doc(db, col, id, "jogos", jid), d));
@@ -202,13 +206,14 @@ export function montarTorneio(ctx) {
     const demoBtn = podeEditar() && !T.demo && !torneios.some(t => t.demo) ? botaoDemo() : null;
     T.etapas.forEach((et, i) => {
       const js = jogosEtapa(i), fin = js.filter(j => j.status === "encerrado" && !j.wo).length;
-      const final = js.find(j => j.fase === "mata" && j.faseNome === "Final" && j.status === "encerrado");
-      const camp = final ? res(final).venc : null;
+      const pods = podiosEtapa(i), camp = (pods[0] && pods[0].p[0]) || null;
+      const acabou = pods.length && pods.every(x => x.p[0]) && js.every(j => j.status === "encerrado");
       w.append(h("button", { type: "button", class: "t-card t-etapa", onclick: () => { etapaSel = i; aba = "chaves"; ls.set("aba", aba); render(); } },
-        h("div", { class: "t-linha t-entre" }, h("b", { text: et.nome }), h("span", { class: "t-pill" + (camp ? " ok" : js.length ? " and" : ""), text: camp ? "Encerrada" : js.length ? "Em andamento" : "Sem sorteio" })),
+        h("div", { class: "t-linha t-entre" }, h("b", { text: et.nome }), h("span", { class: "t-pill" + (acabou ? " ok" : js.length ? " and" : ""), text: acabou ? "Encerrada" : js.length ? "Em andamento" : "Sem sorteio" })),
         h("span", { class: "cap", text: [et.local, fmtData(et.data), et.hora].filter(Boolean).join(" · ") || "Local, data e horário a definir" }),
         js.length ? h("span", { class: "cap", text: fin + " de " + js.filter(j => !j.wo).length + " jogos encerrados" }) : null,
-        camp && h("span", { class: "t-campeao", text: "🏆 Campeã: " + eqNome(camp) })));
+        pods.filter(x => x.p.some(Boolean)).map(x => h("span", { class: "t-campeao" }, x.serie != null ? h("b", { text: x.titulo + ": " }) : null,
+          x.p.map((id, k) => id ? (k ? " · " : "") + MED[k] + " " + eqNome(id) : null)))));
     });
     w.append(cartaoExportar());
     if (T.demo) w.append(h("p", { class: "cap", text: "Este é um torneio de demonstração, com equipes e atletas fictícios. Para apagar: Editar → Apagar torneio." }));
@@ -287,8 +292,9 @@ export function montarTorneio(ctx) {
     const et = T.etapas[etapaSel]; if (!et) return w;
     w.append(h("p", { class: "cap", text: [et.local, fmtData(et.data), et.hora].filter(Boolean).join(" · ") }));
     const js = jogosEtapa(etapaSel);
-    const grp = C.gruposDe(et), temGrupos = grp.length > 0, temMata = js.some(j => j.fase === "mata");
+    const grp = C.gruposDe(et), temGrupos = grp.length > 0, temMata = js.some(j => j.fase === "mata" && j.serie == null), series = et.series || [], temSeries = series.length > 0;
     if (!temGrupos && !temMata) { w.append(telaSorteio(et)); return w; }
+    const emSeries = et.formato === "series";
     // grupos
     if (temGrupos) {
       w.append(h("h3", { class: "t-h", text: "Fase de classificação" }));
@@ -304,7 +310,7 @@ export function montarTorneio(ctx) {
               h("td", { text: (i + 1) + "º" }), h("td", { class: "l", text: eqNome(r.eid) }), h("td", { text: r.j }), h("td", { text: r.v }), !BIR && h("td", { text: r.e }), h("td", { text: r.d }), h("td", { text: (r.saldo > 0 ? "+" : "") + r.saldo })))))));
       });
       w.append(grade);
-      w.append(h("p", { class: "cap", text: "Em destaque, quem passa de fase (" + (et.classificam || 2) + (grp.length > 1 ? " por grupo" : "") + "). Desempate: vitórias, " + (BIR ? "" : "empates, ") + "saldo de pontos e pontos feitos." }));
+      w.append(h("p", { class: "cap", text: (emSeries ? "Em destaque, quem vai para as séries: " + C.SERIES.slice(0, et.classificam || 3).map((s, k) => (k + 1) + "º → " + s).join(", ") + ". " : "Em destaque, quem passa de fase (" + (et.classificam || 2) + (grp.length > 1 ? " por grupo" : "") + "). ") + "Desempate: vitórias, " + (BIR ? "" : "empates, ") + "saldo de pontos e pontos feitos." }));
       grp.forEach((g, gi) => {
         const jg = js.filter(j => j.fase === "grupo" && j.grupo === gi).sort((a, b) => a.rodada - b.rodada || a.ordem - b.ordem);
         w.append(h("details", { class: "t-card t-jogos", open: grp.length <= 2 },
@@ -312,23 +318,63 @@ export function montarTorneio(ctx) {
           jg.map(j => cartaoJogo(j))));
       });
       const faltam = js.filter(j => j.fase === "grupo" && j.status !== "encerrado").length;
-      if (!temMata && podeEditar()) {
+      if (!temMata && !temSeries && podeEditar()) {
+        const oQue = emSeries ? "as séries" : "o mata-mata";
         w.append(h("div", { class: "t-card" },
-          faltam ? h("p", { class: "cap", text: "Faltam " + faltam + (faltam === 1 ? " jogo" : " jogos") + " da classificação para gerar o mata-mata." }) : h("p", { class: "cap", text: "Classificação encerrada. Gere o mata-mata com os classificados." }),
+          faltam ? h("p", { class: "cap", text: "Faltam " + faltam + (faltam === 1 ? " jogo" : " jogos") + " da classificação para gerar " + oQue + "." }) : h("p", { class: "cap", text: "Classificação encerrada. Gere " + oQue + " com os classificados." }),
           h("div", { class: "t-linha" },
-            h("button", { type: "button", disabled: !!faltam, onclick: () => gerarMataMata(et, etapaSel) }, "Gerar mata-mata"),
+            h("button", { type: "button", disabled: !!faltam, onclick: () => emSeries ? gerarSeries(et, etapaSel) : gerarMataMata(et, etapaSel) }, emSeries ? "Gerar séries Ouro, Prata e Bronze" : "Gerar mata-mata"),
             !js.some(j => j.status === "encerrado" && !j.wo) && h("button", { type: "button", class: "ghost", onclick: () => perguntar("Desfazer o sorteio desta etapa? Os jogos criados serão apagados.", () => desfazerSorteio(etapaSel), "Desfazer sorteio") }, "Desfazer sorteio"))));
       }
     }
     if (temMata) {
       w.append(h("h3", { class: "t-h", text: "Mata-mata" }));
-      w.append(chaveMata(js.filter(j => j.fase === "mata")));
-      if (podeEditar() && !js.some(j => j.fase === "mata" && j.status === "encerrado" && !j.wo)) w.append(h("button", { type: "button", class: "ghost", onclick: () => perguntar("Desfazer o mata-mata desta etapa?", async () => {
-        const b = writeBatch(db); js.filter(j => j.fase === "mata").forEach(j => b.delete(jogoRef(j.id))); await b.commit(); toast("Mata-mata desfeito.");
+      const mj = js.filter(j => j.fase === "mata" && j.serie == null);
+      w.append(chaveMata(mj));
+      w.append(cartaoPodio("Pódio", C.podioMata(esporte, mj)));
+      if (podeEditar() && !mj.some(j => j.status === "encerrado" && !j.wo)) w.append(h("button", { type: "button", class: "ghost", onclick: () => perguntar("Desfazer o mata-mata desta etapa?", async () => {
+        const b = writeBatch(db); mj.forEach(j => b.delete(jogoRef(j.id))); await b.commit(); toast("Mata-mata desfeito.");
         if (!temGrupos) await desfazerSorteio(etapaSel);
       }, "Desfazer") }, "Desfazer mata-mata"));
     }
+    if (temSeries) {
+      series.forEach((s, si) => {
+        const sj = js.filter(j => j.serie === si);
+        const card = h("section", { class: "t-serie s" + si },
+          h("h3", { class: "t-h t-serie-tit" }, h("span", { class: "t-medalha m" + si, text: MED[si] }), C.SERIES[si],
+            h("small", { text: s.equipes.length + " equipes · " + (s.tipo === "todos" ? "todos contra todos" : s.tipo === "final" ? "final" : s.equipes.length <= 4 ? "semifinal, final e 3º lugar" : s.equipes.length <= 8 ? "quartas, semifinal, final e 3º lugar" : "mata-mata com 3º lugar") })));
+        if (s.tipo === "todos") {
+          const cl = C.classificacao(esporte, s.equipes, sj, eqNome);
+          card.append(h("div", { class: "t-card t-grupo" }, h("table", { class: "t-tab" },
+            h("thead", null, h("tr", null, h("th", { text: "" }), h("th", { class: "l", text: "Equipe" }), h("th", { text: "J" }), h("th", { text: "V" }), !BIR && h("th", { text: "E" }), h("th", { text: "D" }), h("th", { text: "Saldo" }))),
+            h("tbody", null, cl.map((r, i) => h("tr", { class: i < 3 ? "passa" : "" },
+              h("td", { text: (i + 1) + "º" }), h("td", { class: "l", text: eqNome(r.eid) }), h("td", { text: r.j }), h("td", { text: r.v }), !BIR && h("td", { text: r.e }), h("td", { text: r.d }), h("td", { text: (r.saldo > 0 ? "+" : "") + r.saldo })))))));
+          card.append(h("details", { class: "t-card t-jogos", open: true }, h("summary", null, "Jogos da " + C.SERIES[si] + " · " + sj.filter(j => j.status === "encerrado").length + "/" + sj.length),
+            sj.sort((a, b) => a.rodada - b.rodada || a.ordem - b.ordem).map(j => cartaoJogo(j))));
+        } else card.append(chaveMata(sj));
+        card.append(cartaoPodio("Medalhas da " + C.SERIES[si], C.podioSerie(esporte, s, sj, eqNome)));
+        w.append(card);
+      });
+      if (podeEditar() && !js.some(j => j.serie != null && j.status === "encerrado" && !j.wo)) w.append(h("button", { type: "button", class: "ghost", onclick: () => perguntar("Desfazer as séries desta etapa?", async () => {
+        const b = writeBatch(db); js.filter(j => j.serie != null).forEach(j => b.delete(jogoRef(j.id)));
+        b.update(ref(), { etapas: T.etapas.map((e, i) => i === etapaSel ? { ...e, series: [] } : e) }); await b.commit(); toast("Séries desfeitas.");
+      }, "Desfazer") }, "Desfazer séries"));
+    }
     return w;
+  }
+
+  function cartaoPodio(titulo, p) {
+    if (!p || !p.length) return null;
+    const rot = ["1º lugar", "2º lugar", "3º lugar"];
+    return h("div", { class: "t-card t-podio" }, h("div", { class: "t-gtit", text: titulo }),
+      h("ol", { class: "t-podio-l" }, [0, 1, 2].map(k => h("li", { class: "p" + k + (p[k] ? "" : " vazio") }, h("span", { class: "t-medalha m" + k, text: MED[k] }), h("span", { class: "cap", text: rot[k] }), h("b", { text: p[k] ? eqNome(p[k]) : "A definir" })))));
+  }
+  function podiosEtapa(ei) {
+    const js = jogosEtapa(ei), et = T.etapas[ei] || {}, out = [];
+    const mj = js.filter(j => j.fase === "mata" && j.serie == null);
+    if (mj.length) out.push({ titulo: "Mata-mata", p: C.podioMata(esporte, mj) });
+    (et.series || []).forEach((s, si) => out.push({ titulo: C.SERIES[si], serie: si, p: C.podioSerie(esporte, s, js.filter(j => j.serie === si), eqNome) }));
+    return out;
   }
 
   function cartaoJogo(j, compacto) {
@@ -342,16 +388,18 @@ export function montarTorneio(ctx) {
       h("span", { class: "t-eq dir " + cls(j.b), text: j.wo ? "—" : j.b ? eqNome(j.b) : "A definir" }));
   }
 
-  function chaveMata(mj) {
+  function chaveMata(todos) {
+    const mj = todos.filter(j => !j.perd), terc = todos.find(j => j.perd);
     const rodadas = [...new Set(mj.map(j => j.rodada))].sort((a, b) => a - b);
     const box = h("div", { class: "t-chave" });
     rodadas.forEach(r => {
       const js = mj.filter(j => j.rodada === r).sort((a, b) => a.ordem - b.ordem);
       box.append(h("div", { class: "t-rod" }, h("div", { class: "t-rodtit", text: js[0].faseNome }), h("div", { class: "t-rodjogos" }, js.map(j => h("div", { class: "t-slot" }, cartaoJogo(j, true))))));
     });
-    const final = mj.find(j => j.faseNome === "Final" && j.status === "encerrado");
-    if (final) box.append(h("div", { class: "t-rod t-camp" }, h("div", { class: "t-rodtit", text: "Campeã" }), h("div", { class: "t-rodjogos" }, h("div", { class: "t-slot" }, h("div", { class: "t-trofeu" }, "🏆", h("b", { text: eqNome(res(final).venc) }))))));
-    return h("div", { class: "t-chave-wrap" }, box);
+    const campea = C.podioMata(esporte, todos)[0];
+    if (campea) box.append(h("div", { class: "t-rod t-camp" }, h("div", { class: "t-rodtit", text: "Campeã" }), h("div", { class: "t-rodjogos" }, h("div", { class: "t-slot" }, h("div", { class: "t-trofeu" }, "🏆", h("b", { text: eqNome(campea) }))))));
+    return h("div", { class: "t-col" }, h("div", { class: "t-chave-wrap" }, box),
+      terc && h("div", { class: "t-terc" }, h("div", { class: "t-rodtit", text: terc.faseNome }), cartaoJogo(terc, true)));
   }
 
   /* ---------- sorteio ---------- */
@@ -360,17 +408,28 @@ export function montarTorneio(ctx) {
     if (!podeEditar()) { w.append(h("div", { class: "t-card" }, h("p", { class: "cap", text: "O sorteio desta etapa ainda não foi feito." }))); return w; }
     if (n < 2) { w.append(h("div", { class: "t-card" }, h("p", { class: "cap", text: "Cadastre pelo menos 2 equipes." }))); return w; }
     const sug = C.sugerirGrupos(n);
-    const rs = sorteioRascunho || (sorteioRascunho = { nGrupos: sug, classificam: C.sugerirClassificados(n, sug), modo: "auto", grupos: null });
+    const padrao = (ng, f) => f === "series" ? Math.min(3, ...C.tamanhosGrupos(n, ng)) : C.sugerirClassificados(n, ng);
+    const sugG = SERIES_OK && sug < 2 && n >= 6 ? 2 : sug, fmt0 = SERIES_OK && sugG >= 2 ? "series" : "mata";
+    const rs = sorteioRascunho || (sorteioRascunho = { nGrupos: sugG, formato: fmt0, disputaSeries: "auto", classificam: padrao(sugG, fmt0), modo: "auto", grupos: null });
+    const series = rs.formato === "series" && rs.nGrupos >= 2;
     const maxG = Math.max(1, Math.floor(n / 2));
     w.append(h("div", { class: "t-card t-form" },
       h("h3", { text: "Montar o chaveamento" }),
       h("p", { class: "cap", text: textoSugestao(n) }),
       h("div", { class: "t-linha" },
-        h("label", { class: "t-lbl" }, "Grupos", h("select", { onchange: e => { rs.nGrupos = +e.target.value; rs.classificam = C.sugerirClassificados(n, rs.nGrupos); rs.grupos = null; render(); } },
+        h("label", { class: "t-lbl" }, "Grupos", h("select", { onchange: e => { rs.nGrupos = +e.target.value; if (rs.nGrupos < 2) rs.formato = "mata"; else if (SERIES_OK && rs.formato !== "mata") rs.formato = "series"; rs.classificam = padrao(rs.nGrupos, rs.formato); rs.grupos = null; render(); } },
           h("option", { value: 0, selected: rs.nGrupos === 0 }, "Sem grupos (mata-mata direto)"),
           Array.from({ length: maxG }, (_, i) => h("option", { value: i + 1, selected: rs.nGrupos === i + 1 }, (i + 1) + (i ? " grupos (" + [...new Set(C.tamanhosGrupos(n, i + 1))].join(" e ") + " equipes)" : " grupo (todos contra todos)"))))),
-        rs.nGrupos > 0 && h("label", { class: "t-lbl" }, "Passam por grupo", h("select", { onchange: e => { rs.classificam = +e.target.value; render(); } },
-          [1, 2, 3, 4].filter(q => q <= Math.min(...C.tamanhosGrupos(n, rs.nGrupos))).map(q => h("option", { value: q, selected: rs.classificam === q }, q))))),
+        rs.nGrupos > 0 && h("label", { class: "t-lbl" }, series ? "Vão para as séries (por grupo)" : "Passam por grupo", h("select", { onchange: e => { rs.classificam = +e.target.value; render(); } },
+          (series ? [1, 2, 3] : [1, 2, 3, 4]).filter(q => q <= Math.min(...C.tamanhosGrupos(n, rs.nGrupos))).map(q => h("option", { value: q, selected: rs.classificam === q }, q))))),
+      SERIES_OK && rs.nGrupos >= 2 && h("div", { class: "t-lbl" }, "Depois dos grupos",
+        h("div", { class: "chips" },
+          h("button", { type: "button", "aria-pressed": String(series), onclick: () => { rs.formato = "series"; rs.classificam = padrao(rs.nGrupos, "series"); render(); } }, "Séries Ouro, Prata e Bronze"),
+          h("button", { type: "button", "aria-pressed": String(!series), onclick: () => { rs.formato = "mata"; rs.classificam = padrao(rs.nGrupos, "mata"); render(); } }, "Mata-mata"))),
+      series && h("p", { class: "cap", text: "Os 1ºs colocados de cada grupo formam a Série Ouro, os 2ºs a Série Prata e os 3ºs a Série Bronze. Cada série decide 1º, 2º e 3º lugar (medalhas de ouro, prata e bronze)." }),
+      series && h("label", { class: "t-lbl" }, "Disputa dentro de cada série", h("select", { onchange: e => { rs.disputaSeries = e.target.value; render(); } },
+        h("option", { value: "auto", selected: rs.disputaSeries !== "todos" }, "Automática: 2 equipes = final · 3 = todos contra todos · 4 ou mais = mata-mata (semifinal, final e 3º lugar)"),
+        h("option", { value: "todos", selected: rs.disputaSeries === "todos" }, "Sempre todos contra todos (pontos corridos)"))),
       rs.nGrupos > 0 && h("div", { class: "chips" },
         h("button", { type: "button", "aria-pressed": String(rs.modo === "auto"), onclick: () => { rs.modo = "auto"; rs.grupos = null; render(); } }, "Sorteio automático"),
         h("button", { type: "button", "aria-pressed": String(rs.modo === "manual"), onclick: () => { rs.modo = "manual"; rs.grupos = null; render(); } }, "Manual (sorteio feito fora)"))));
@@ -409,14 +468,14 @@ export function montarTorneio(ctx) {
     rs.grupos.forEach((g, gi) => C.todosContraTodos(g).forEach((par, r) => par.forEach(([a, bb], o) => {
       const id = C.uid("j"); b.set(jogoRef(id), novoJogo({ etapa: ei, fase: "grupo", grupo: gi, rodada: r + 1, ordem: o, a, b: bb, faseNome: "Grupo " + C.letraGrupo(gi) }));
     })));
-    const etapas = T.etapas.map((e, i) => i === ei ? { ...e, grupos: C.gruposParaSalvar(rs.grupos), classificam: rs.classificam, sorteio: rs.modo } : e);
+    const etapas = T.etapas.map((e, i) => i === ei ? { ...e, grupos: C.gruposParaSalvar(rs.grupos), classificam: rs.classificam, sorteio: rs.modo, formato: rs.formato === "series" && rs.grupos.length >= 2 ? "series" : "mata", disputaSeries: rs.disputaSeries || "auto", series: [] } : e);
     b.update(ref(), { etapas });
     try { await b.commit(); sorteioRascunho = null; toast("Grupos e jogos criados."); } catch (e) { console.error(e); toast("Não deu para salvar o sorteio."); }
   }
 
   async function desfazerSorteio(ei) {
     const b = writeBatch(db); jogosEtapa(ei).forEach(j => b.delete(jogoRef(j.id)));
-    b.update(ref(), { etapas: T.etapas.map((e, i) => i === ei ? { ...e, grupos: [], classificam: null } : e) });
+    b.update(ref(), { etapas: T.etapas.map((e, i) => i === ei ? { ...e, grupos: [], classificam: null, series: [] } : e) });
     await b.commit(); sorteioRascunho = null; toast("Sorteio desfeito.");
   }
 
@@ -432,37 +491,57 @@ export function montarTorneio(ctx) {
   function gerarMataDireto(ei) {
     return criarMata(ei, T.equipes.map((e, i) => ({ eid: e.id, grupo: null, pos: i + 1 })));
   }
-  async function criarMata(ei, qual) {
-    const pares = C.primeiraRodada(qual), b = writeBatch(db);
-    let anterior = [], rodada = 1, lista = [];
-    pares.forEach(([x, y], o) => {
-      const id = C.uid("j"), a = x ? x.eid : null, bb = y ? y.eid : null;
-      const j = novoJogo({ id, etapa: ei, fase: "mata", rodada, ordem: o, a: a || bb, b: a && bb ? bb : null, faseNome: C.nomeFase(pares.length) });
-      if (!a || !bb) { j.wo = a || bb; j.status = "encerrado"; }
-      anterior.push(j); lista.push(j);
-    });
-    while (anterior.length > 1) {
-      rodada++; const prox = [];
-      for (let i = 0; i < anterior.length; i += 2) {
-        const j = novoJogo({ id: C.uid("j"), etapa: ei, fase: "mata", rodada, ordem: i / 2, a: null, b: null, de: [anterior[i].id, anterior[i + 1].id], faseNome: C.nomeFase(anterior.length / 2) });
-        prox.push(j); lista.push(j);
-      }
-      anterior = prox;
-    }
+  // jogos de uma chave (com bye e disputa de 3º lugar). extra: { serie, prefixo }
+  function jogosChave(ei, qual, extra = {}) {
+    const est = C.estruturaChave(qual, () => C.uid("j")), pre = extra.prefixo || "", base = extra.serie != null ? { serie: extra.serie } : {};
+    const lista = [];
+    est.rodadas.forEach((rod, ri) => rod.forEach(m => {
+      const fase = pre + C.nomeFase(rod.length);
+      if (ri === 0) {
+        const a = m.x ? m.x.eid : null, bb = m.y ? m.y.eid : null;
+        const j = novoJogo({ id: m.id, etapa: ei, fase: "mata", ...base, rodada: 1, ordem: m.ordem, a: a || bb, b: a && bb ? bb : null, faseNome: fase });
+        if (!a || !bb) { j.wo = a || bb; j.status = "encerrado"; }
+        lista.push(j);
+      } else lista.push(novoJogo({ id: m.id, etapa: ei, fase: "mata", ...base, rodada: m.rodada, ordem: m.ordem, a: null, b: null, de: m.de, faseNome: fase }));
+    }));
+    if (est.terceiro) { const t = est.terceiro; lista.push(novoJogo({ id: t.id, etapa: ei, fase: "mata", ...base, rodada: t.rodada, ordem: t.ordem, a: null, b: null, perd: t.perd, faseNome: pre ? pre + "3º lugar" : C.TERCEIRO })); }
     // byes já avançam
     lista.forEach(j => { if (!j.de) return; const [s1, s2] = j.de.map(id => lista.find(x => x.id === id)); if (s1.wo) j.a = s1.wo; if (s2.wo) j.b = s2.wo; });
-    lista.forEach(j => { const { id, ...d } = j; b.set(jogoRef(id), d); });
+    return lista;
+  }
+  async function criarMata(ei, qual) {
+    const b = writeBatch(db);
+    jogosChave(ei, qual).forEach(j => { const { id, ...d } = j; b.set(jogoRef(id), d); });
     try { await b.commit(); toast("Mata-mata gerado."); } catch (e) { console.error(e); toast("Não deu para gerar o mata-mata."); }
   }
 
-  // após encerrar/alterar um jogo do mata-mata, leva o vencedor para o próximo jogo
-  function propagar(jogoAtualizado) {
-    if (jogoAtualizado.fase !== "mata") return;
-    const prox = jogos.find(j => (j.de || []).includes(jogoAtualizado.id));
-    if (!prox) return;
-    const lado = prox.de[0] === jogoAtualizado.id ? "a" : "b";
-    const r = res(jogoAtualizado), venc = r.fim && !r.empate ? r.venc : null;
-    if (prox[lado] !== venc) updateDoc(jogoRef(prox.id), { [lado]: venc }).catch(console.error);
+  // Séries (Liga): 1ºs de cada grupo na Série Ouro, 2ºs na Prata, 3ºs na Bronze
+  async function gerarSeries(et, ei) {
+    const js = jogosEtapa(ei), q = Math.min(3, et.classificam || 3);
+    const porGrupo = C.gruposDe(et).map((g, gi) => C.classificacao(esporte, g, js.filter(j => j.fase === "grupo" && j.grupo === gi), eqNome).slice(0, q));
+    const series = C.montarSeries(porGrupo, q, et.disputaSeries === "todos");
+    const b = writeBatch(db);
+    series.forEach((s, si) => {
+      if (s.tipo === "todos") C.todosContraTodos(s.equipes).forEach((par, r) => par.forEach(([a, bb], o) => {
+        const id = C.uid("j"); b.set(jogoRef(id), novoJogo({ etapa: ei, fase: "serie", serie: si, rodada: r + 1, ordem: o, a, b: bb, faseNome: C.SERIES[si] }));
+      }));
+      else jogosChave(ei, s.equipes.map(eid => ({ eid, grupo: null })), { serie: si, prefixo: C.SERIES[si] + " · " }).forEach(j => { const { id, ...d } = j; b.set(jogoRef(id), d); });
+    });
+    b.update(ref(), { etapas: T.etapas.map((e, i) => i === ei ? { ...e, series } : e) });
+    try { await b.commit(); toast("Séries geradas."); } catch (e) { console.error(e); toast("Não deu para gerar as séries."); }
+  }
+
+  // após encerrar/alterar um jogo do mata-mata, leva o vencedor para o próximo jogo e o perdedor da semifinal para o 3º lugar
+  function propagar(j) {
+    if (j.fase !== "mata") return;
+    const r = res(j), venc = r.fim && !r.empate ? r.venc : null, perd = venc ? (venc === j.a ? j.b : j.a) : null;
+    jogos.forEach(x => {
+      [["de", venc], ["perd", perd]].forEach(([campo, quem]) => {
+        if (!(x[campo] || []).includes(j.id)) return;
+        const lado = x[campo][0] === j.id ? "a" : "b";
+        if (x[lado] !== quem) updateDoc(jogoRef(x.id), { [lado]: quem }).catch(console.error);
+      });
+    });
   }
 
   /* ---------- súmula ---------- */
@@ -623,13 +702,13 @@ export function montarTorneio(ctx) {
   /* ---------- estatísticas ---------- */
   function telaStats() {
     const w = h("div", { class: "t-col" });
-    const fases = [...new Set(jogos.map(j => j.fase === "grupo" ? "Classificação" : j.faseNome))];
-    const ordemF = ["Classificação", "16 avos de final", "Oitavas de final", "Quartas de final", "Semifinal", "Final"];
+    const fases = [...new Set(jogos.map(C.faseEstat))];
+    const ordemF = C.ORDEM_FASES;
     fases.sort((a, b) => ordemF.indexOf(a) - ordemF.indexOf(b));
     w.append(h("div", { class: "t-linha" },
       h("select", { "aria-label": "Etapa", onchange: e => { filtroEtapa = e.target.value; render(); } }, h("option", { value: "todas" }, "Todas as etapas"), T.etapas.map((et, i) => h("option", { value: i, selected: String(i) === String(filtroEtapa) }, et.nome))),
       h("select", { "aria-label": "Fase", onchange: e => { filtroFase = e.target.value; render(); } }, h("option", { value: "todas" }, "Todas as fases"), fases.map(f => h("option", { value: f, selected: f === filtroFase }, f)))));
-    const faseDe = j => j.fase === "grupo" ? "Classificação" : j.faseNome;
+    const faseDe = C.faseEstat;
     const js = jogos.filter(j => !j.wo && j.status === "encerrado" && (filtroEtapa === "todas" || j.etapa === +filtroEtapa) && (filtroFase === "todas" || faseDe(j) === filtroFase));
     if (!js.length) { w.append(h("div", { class: "t-card" }, h("p", { class: "cap", text: "As estatísticas aparecem quando houver jogos encerrados." }))); }
     const sa = C.statsAtletas(js);
