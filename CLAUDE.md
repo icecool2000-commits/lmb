@@ -10,3 +10,4 @@
 - A cada mudança, subir a versão do cache em `sw.js` (const C).
 - Formato da Liga (`formatoSeries:true` no index.html): os 3 primeiros de cada grupo vão para as séries — 1ºs na Série Ouro, 2ºs na Prata, 3ºs na Bronze (`etapa.formato = "series"`, `etapa.series = [{equipes, tipo}]`). Disputa em cada série: 2 equipes = final; 3 = todos contra todos; 4+ = mata-mata com semifinal, final e 3º lugar (ou "sempre todos contra todos" via `disputaSeries`). Jogos das séries têm `serie` (0/1/2); mata-mata delas usa `fase:"mata"`, todos contra todos usa `fase:"serie"`. Cada série dá medalhas de ouro, prata e bronze.
 - Demonstração da Liga: 24 equipes, 8 grupos de 3, duas etapas completas (séries de 8 com quartas, semi, 3º lugar e final).
+- O app do time (`mococa-lmb`) usa uma CÓPIA de `torneio-core.js` para importar etapas da Liga: mudou o core, copie para lá também.
