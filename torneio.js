@@ -41,7 +41,9 @@ export function montarTorneio(ctx) {
   const jogosEtapa = i => jogos.filter(j => j.etapa === i);
   const res = j => C.resultado(esporte, j);
   const MED = ["🥇", "🥈", "🥉"];
-  const SERIES_OK = !!ctx.formatoSeries; // Liga: 3 primeiros de cada grupo formam as séries Ouro, Prata e Bronze
+  const SERIES_OK = !!ctx.formatoSeries;
+  // equipe da casa (app do time): nome e atletas vêm do elenco
+  const casa = () => { const c = ctx.equipeCasa ? ctx.equipeCasa() : null; return c && c.nome ? { nome: c.nome, atletas: (c.atletas || []).slice(0, maxAtletas).map(a => ({ id: a.id, nome: a.nome, num: a.num ?? null })) } : null; }; // Liga: 3 primeiros de cada grupo formam as séries Ouro, Prata e Bronze
 
   /* ---------- dados ---------- */
   onSnapshot(collection(db, col), snap => {
@@ -120,6 +122,7 @@ export function montarTorneio(ctx) {
       const nEt = Math.max(1, Math.min(12, +f.querySelector("#tn-et").value || 1));
       if (!nome) { toast("Dê um nome ao torneio."); return; }
       const equipes = Array.from({ length: nEq }, (_, i) => ({ id: C.uid("e"), nome: (f.querySelector("#tn-e" + i) || {}).value?.trim() || "Equipe " + (i + 1), atletas: [] }));
+      const cs = casa(); if (cs) { const e0 = equipes.find(e => e.nome === cs.nome); if (e0) e0.atletas = cs.atletas; }
       const etapas = Array.from({ length: nEt }, (_, i) => ({ id: C.uid("s"), nome: nEt > 1 ? (i + 1) + "ª etapa" : "Etapa única", local: f.querySelector("#tn-l" + i)?.value.trim() || "", data: f.querySelector("#tn-d" + i)?.value || "", hora: f.querySelector("#tn-h" + i)?.value || "" }));
       const id = C.uid("t");
       try {
@@ -130,7 +133,7 @@ export function montarTorneio(ctx) {
     const campoEq = h("div", { class: "t-grid2", id: "tn-eqs" });
     const campoEt = h("div", { class: "t-etapas", id: "tn-ets" });
     const desenharEq = () => { const n = Math.max(2, Math.min(32, +f.querySelector("#tn-eq").value || 0)); const ant = [...campoEq.querySelectorAll("input")].map(i => i.value);
-      campoEq.textContent = ""; for (let i = 0; i < n; i++) campoEq.append(h("input", { id: "tn-e" + i, placeholder: "Equipe " + (i + 1), value: ant[i] || "", "aria-label": "Nome da equipe " + (i + 1), maxlength: 30 }));
+      campoEq.textContent = ""; for (let i = 0; i < n; i++) campoEq.append(h("input", { id: "tn-e" + i, placeholder: "Equipe " + (i + 1), value: ant[i] || (i === 0 && casa() ? casa().nome : ""), "aria-label": "Nome da equipe " + (i + 1), maxlength: 30 }));
       dica.textContent = textoSugestao(n); };
     const desenharEt = () => { const n = Math.max(1, Math.min(12, +f.querySelector("#tn-et").value || 1)); campoEt.textContent = "";
       for (let i = 0; i < n; i++) campoEt.append(h("div", { class: "t-etapa-form" }, h("b", { text: n > 1 ? (i + 1) + "ª etapa" : "Etapa única" }),
@@ -143,7 +146,7 @@ export function montarTorneio(ctx) {
       h("div", { class: "t-linha" },
         h("label", { class: "t-lbl" }, "Nº de equipes", h("input", { id: "tn-eq", type: "number", min: 2, max: 32, value: 8, oninput: desenharEq })),
         h("label", { class: "t-lbl" }, "Nº de etapas", h("input", { id: "tn-et", type: "number", min: 1, max: 12, value: 1, oninput: desenharEt }))),
-      dica, h("p", { class: "t-sub", text: "Nomes das equipes" }), campoEq,
+      dica, h("p", { class: "t-sub", text: "Nomes das equipes" }), casa() ? h("p", { class: "cap", text: "A equipe \"" + casa().nome + "\" já entra com os atletas do elenco (nome e número)." }) : null, campoEq,
       h("p", { class: "t-sub", text: "Etapas: local, data e horário" }), campoEt,
       h("div", { class: "t-linha" }, h("button", { type: "submit" }, "Criar torneio"), h("button", { type: "button", class: "ghost", onclick: () => { formNovo = false; render(); } }, "Cancelar")));
     setTimeout(() => { desenharEq(); desenharEt(); }, 0);
@@ -169,7 +172,7 @@ export function montarTorneio(ctx) {
   async function criarDemo() {
     const id = "demo-" + Date.now().toString(36);
     try {
-      const { torneio, jogos: js } = gerarDemo(esporte, ctx.nomeDemo, { series: SERIES_OK });
+      const { torneio, jogos: js } = gerarDemo(esporte, ctx.nomeDemo, { series: SERIES_OK, casa: casa() });
       const b = writeBatch(db);
       b.set(doc(db, col, id), torneio);
       js.forEach(({ id: jid, ...d }) => b.set(doc(db, col, id, "jogos", jid), d));
@@ -278,6 +281,17 @@ export function montarTorneio(ctx) {
     if (podeEditar()) w.append(h("div", { class: "t-linha" },
       h("button", { type: "button", class: "ghost", onclick: () => salvarTorneio({ equipes: [...T.equipes, { id: C.uid("e"), nome: "Equipe " + (T.equipes.length + 1), atletas: [] }] }) }, "+ Equipe"),
       h("span", { class: "cap", text: "Até " + maxAtletas + " atletas por equipe" })));
+    const cs = casa();
+    if (podeEditar() && cs) {
+      const eqCasa = T.equipes.find(e => e.nome.trim().toLowerCase() === cs.nome.trim().toLowerCase());
+      w.append(h("div", { class: "t-card" }, h("p", { class: "cap", text: eqCasa ? "Atualize os atletas de " + eqCasa.nome + " com o elenco cadastrado (nome e número)." : "Coloque a equipe de " + cs.nome + " no torneio já com os atletas do elenco." }),
+        h("button", { type: "button", onclick: () => {
+          if (!cs.atletas.length) { toast("Cadastre o elenco na aba Atletas primeiro."); return; }
+          if (eqCasa) { const tem = new Set((eqCasa.atletas || []).map(a => a.id)); const novos = [...(eqCasa.atletas || []), ...cs.atletas.filter(a => !tem.has(a.id))].slice(0, maxAtletas);
+            salvarTorneio({ equipes: T.equipes.map(e => e.id === eqCasa.id ? { ...e, atletas: novos } : e) }).then(() => toast("Elenco de " + eqCasa.nome + " atualizado.")); }
+          else salvarTorneio({ equipes: [{ id: C.uid("e"), nome: cs.nome, atletas: cs.atletas }, ...T.equipes] }).then(() => toast(cs.nome + " entrou no torneio."));
+        } }, eqCasa ? "Puxar elenco para " + eqCasa.nome : "+ " + cs.nome + " (com o elenco)")));
+    }
     T.equipes.forEach((eq, ei) => {
       const card = h("div", { class: "t-card" });
       if (podeEditar()) {

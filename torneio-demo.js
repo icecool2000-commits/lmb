@@ -7,7 +7,7 @@ function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10139
 const NOMES = ["Adriano","Bruno","Caio","Danilo","Eduardo","Fábio","Gustavo","Heitor","Igor","João","Kauã","Leandro","Marcelo","Nícolas","Otávio","Paulo","Rafael","Sérgio","Tiago","Vinícius","Wagner","Yuri","André","Beto","Cláudio","Diego","Émerson","Felipe","Gabriel","Hugo","Ivan","Júlio","Lucas","Mateus","Nelson","Osmar","Pedro","Renato","Samuel","Túlio","Ulisses","Vitor","Willian","Alex","Breno","César","Davi","Enzo","Flávio","Guilherme","Henrique","Isaque","Jonas","Léo","Murilo","Nando","Orlando","Pietro","Ronaldo","Saulo","Teo","Valter","Xande","Zeca","Álvaro","Bento","Cristiano","Douglas","Elias","Fernando","Geraldo","Hélio","Ítalo","Jairo","Kleber","Luan","Márcio","Natan","Oscar","Paulinho","Rodrigo","Silvio","Thiago","Vagner"];
 const SOBRE = ["Silva","Souza","Oliveira","Santos","Lima","Pereira","Costa","Ribeiro","Alves","Carvalho","Gomes","Martins","Rocha","Barbosa","Moreira","Teixeira","Freitas","Mendes","Cardoso","Nunes"];
 const EQ_BIRIBOL = ["Tubarões da AEM","Piratas do Lago","Golfinhos Mococa","Arraias FC","Marlins","Orcas","Lontras","Baleias Azuis","Focas","Polvos","Tritões","Moreias","Siris","Peixe-Espada","Barracudas","Cavalos-Marinhos","Pinguins","Ariranhas","Jacarés","Garoupas","Pirarucus","Dourados","Lambaris","Tilápias"];
-const EQ_LIGA = ["Tubarões da AEM","Piratas de Casa Branca","Golfinhos Mococa","Arraias de Itobi","Marlins de Tambaú","Orcas de Vargem","Lontras de São José","Baleias Azuis","Peixe-Espada Caconde","Barracudas de Guaxupé","Moreias de Arceburgo","Tritões de Mococa","Focas de Mogi Mirim","Polvos de Aguaí","Siris de Pirassununga","Garoupas de Porto Ferreira","Ariranhas de Guaranésia","Jacarés de São João","Dourados de Santa Rosa","Pirarucus de Divinolândia","Cavalos-Marinhos de Mococa","Pinguins de Tapiratiba","Lambaris de Muzambinho","Tilápias de Leme"];
+const EQ_LIGA = ["Tubarões da AEM","Piratas de Casa Branca","Golfinhos de Itapira","Arraias de Itobi","Marlins de Tambaú","Orcas de Vargem","Lontras de São José","Baleias Azuis","Peixe-Espada Caconde","Barracudas de Guaxupé","Moreias de Arceburgo","Tritões de Santa Cruz","Focas de Mogi Mirim","Polvos de Aguaí","Siris de Pirassununga","Garoupas de Porto Ferreira","Ariranhas de Guaranésia","Jacarés de São João","Dourados de Santa Rosa","Pirarucus de Divinolândia","Cavalos-Marinhos de Mogi Guaçu","Pinguins de Tapiratiba","Lambaris de Muzambinho","Tilápias de Leme"];
 const EQ_BASQUETE = ["Dinos","Raptors Mococa","Trovões","Falcões","Lobos da AEM","Panteras","Gaviões","Tigres","Corujas","Leões do Vale"];
 
 export function gerarDemo(esporte, nomeDemo, opts = {}) {
@@ -18,7 +18,10 @@ export function gerarDemo(esporte, nomeDemo, opts = {}) {
   // Liga: séries de 8 equipes com quartas, semi, 3º lugar e final)
   const nEq = BIR ? 24 : 10, nAt = BIR ? 8 : 10;
   let ni = 0;
-  const equipes = (SER ? EQ_LIGA : BIR ? EQ_BIRIBOL : EQ_BASQUETE).slice(0, nEq).map((nome, e) => {
+  const casa = opts.casa || null; // app do time: a 1ª equipe é a da casa, com o elenco
+  const nomesEq = (SER ? EQ_LIGA : BIR ? EQ_BIRIBOL : EQ_BASQUETE).slice(0, nEq); if (casa) nomesEq[0] = casa.nome;
+  const equipes = nomesEq.map((nome, e) => {
+    if (casa && e === 0 && casa.atletas.length) return { id: "demo-e0", nome, atletas: casa.atletas.slice(0, nAt).map(a => ({ id: a.id, nome: a.nome, num: a.num ?? null })) };
     const nums = C.embaralhar(Array.from({ length: 30 }, (_, i) => i + 1), R).slice(0, nAt).sort((a, b) => a - b);
     return { id: "demo-e" + e, nome, atletas: nums.map((num, k) => ({ id: "demo-e" + e + "a" + k, num, nome: NOMES[(ni++ * 7) % NOMES.length] + " " + SOBRE[(e * 3 + k) % SOBRE.length][0] + "." })) };
   });
