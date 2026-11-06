@@ -110,5 +110,31 @@ service cloud.firestore {
         allow write: if podeTorneio();
       }
     }
+
+    // ===== MOCOCA NA LIGA (app do time) =====
+    match /mococa_atletas/{a} {
+      allow read: if true;
+      allow write: if podeTorneio();
+    }
+    match /mococa_etapas/{e} {
+      allow read: if true;
+      allow write: if podeTorneio();
+      // lista de confirmação da próxima etapa: qualquer pessoa confirma o próprio nome
+      match /confirmacoes/{c} {
+        allow read: if true;
+        allow create: if podeTorneio() || (
+          request.auth != null
+          && request.resource.data.keys().hasOnly(['nome', 'aid', 'uid', 'em'])
+          && request.resource.data.nome is string
+          && request.resource.data.nome.size() >= 2
+          && request.resource.data.nome.size() <= 40
+          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.em == request.time
+          && get(/databases/$(database)/documents/mococa_etapas/$(e)).data.status == 'proxima');
+        allow delete: if podeTorneio()
+          || (request.auth != null && resource.data.uid == request.auth.uid
+              && get(/databases/$(database)/documents/mococa_etapas/$(e)).data.status == 'proxima');
+      }
+    }
   }
 }
