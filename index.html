@@ -161,7 +161,7 @@ function toast(msg){ const t=$("toast"); t.textContent=msg; t.classList.add("on"
 
 let user=null, isAdmin=false, isEditor=false, pararEditor=null, pararLista=null;
 const torneio = montarTorneio({ db, fs:{ collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, writeBatch }, midias:{ app:"lmb", perfis:[{ usuario:"biribolligametropolitana", nome:"Liga Metropolitana de Biribol" }], hashtags:"#biribol #ligametropolitanadebiribol #LMB" }, autor:()=>user ? (user.email||"") : null, esporte:"biribol", col:"lmb_torneios", maxAtletas:8, toast,
-  root:$("torneio-root"), podeEditar:()=>isAdmin||isEditor, nomeDemo:"Liga Metropolitana de Biribol", formatoSeries:true,
+  root:$("torneio-root"), podeEditar:()=>isAdmin||isEditor, nomeDemo:"Liga Metropolitana de Biribol", formatoSeries:true, pontosSets:true,
   marca:{ titulo:"Liga Metropolitana de Biribol", logo:"logo.png", escura:"#0b2554", cor:"#1597dc", destaque:"#f6d20b" } });
 
 /* ---------- login ---------- */
