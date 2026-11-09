@@ -248,6 +248,7 @@ const mostrarInstalar = txt => { if (standalone || adiado) return; $("install").
 if (!standalone){
   if (dentroApp) mostrarInstalar("Você abriu pelo "+(/Instagram/i.test(ua)?"Instagram":/FBAN|FBAV|FB_IAB/i.test(ua)?"Facebook":"WhatsApp")+". Para instalar, toque nos 3 pontinhos (⋮ ou ···) e escolha \"Abrir no "+(ios?"Safari":"Chrome")+"\". Lá vai aparecer a opção de instalar.");
   else if (ios) mostrarInstalar("No iPhone (Safari): toque em Compartilhar (quadrado com seta) e depois em \"Adicionar à Tela de Início\".");
+  else if (/SamsungBrowser/i.test(ua)) mostrarInstalar("Você está no navegador da Samsung, onde o Play Protect pode bloquear a instalação. Abra este link no Google Chrome e instale por lá: ⋮ → \"Instalar app\".");
   else if (android) mostrarInstalar("No Android: toque em ⋮ no Chrome e depois em \"Instalar app\" ou \"Adicionar à tela inicial\".");
   else mostrarInstalar("No computador (Chrome ou Edge): clique no ícone de instalar na barra de endereço, ou no menu ⋮ → \"Instalar\".");
 }
