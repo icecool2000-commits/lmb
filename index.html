@@ -79,6 +79,8 @@ footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13p
 .toast.on{opacity:1}
 .install{background:var(--soft);border-radius:12px;padding:12px 14px;font-size:14px;display:flex;flex-direction:column;gap:6px}
 .install p{margin:0}
+.install{border:2px solid var(--amarelo,#f6d20b)}
+.install-bt{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 /* ajustes do modo torneio para a identidade da liga */
 .t-abas button[aria-selected="true"]{background:var(--navy);color:#fff}
 .t-gtit{background:var(--navy);color:#fff;font-style:italic}
@@ -105,6 +107,10 @@ footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13p
 <div class="faixa" aria-hidden="true"></div>
 
 <div class="wrap">
+  <div class="install" id="install" hidden>
+    <p><b>📲 Instale o app da LMB no celular</b></p><p id="install-text"></p>
+    <div class="install-bt"><button type="button" id="btn-install" hidden>Instalar</button><button type="button" class="linkish" id="btn-install-depois">Agora não</button></div>
+  </div>
   <div id="torneio-root" class="t-col"></div>
 
   <div class="t-card" id="ed-painel" hidden>
@@ -123,7 +129,6 @@ footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13p
     </form>
   </div>
 
-  <div class="install" id="install" hidden><p><b>Instale o app no celular</b></p><p id="install-text"></p><button type="button" id="btn-install" hidden>Instalar</button></div>
 
   <footer>
     <button type="button" class="linkish" id="btn-admin">Entrar como organizador</button>
@@ -234,12 +239,22 @@ $("ed-form").addEventListener("submit", async e=>{ e.preventDefault();
   $("ed-criar").disabled=false; });
 
 /* ---------- instalar ---------- */
+// O aviso fica no topo da página (antes ficava no fim, depois de todo o torneio, e ninguém via).
+// Dentro do WhatsApp/Instagram/Facebook não dá para instalar: pede para abrir no Chrome/Safari.
 const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone; let deferred=null;
-if (!standalone){ const ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
-  if (ios){ $("install").hidden=false; $("install-text").textContent="No iPhone: toque em Compartilhar e depois em \"Adicionar à Tela de Início\"."; }
-  else if (/android/i.test(navigator.userAgent)){ $("install").hidden=false; $("install-text").textContent="No Android: toque em ⋮ no Chrome e depois em \"Adicionar à tela inicial\"."; } }
-window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferred=e; $("install").hidden=false; $("btn-install").hidden=false; $("install-text").textContent="Tenha a LMB na tela inicial, como um app."; });
+const ua = navigator.userAgent, ios=/iphone|ipad|ipod/i.test(ua), android=/android/i.test(ua), dentroApp=/WhatsApp|Instagram|FBAN|FBAV|FB_IAB|Line\//i.test(ua) || (android && /; wv\)/.test(ua));
+let adiado=false; try{ adiado = Number(localStorage.getItem("lmb-install-depois")||0) > Date.now(); }catch(e){}
+const mostrarInstalar = txt => { if (standalone || adiado) return; $("install").hidden=false; $("install-text").textContent=txt; };
+if (!standalone){
+  if (dentroApp) mostrarInstalar("Você abriu pelo "+(/Instagram/i.test(ua)?"Instagram":/FBAN|FBAV|FB_IAB/i.test(ua)?"Facebook":"WhatsApp")+". Para instalar, toque nos 3 pontinhos (⋮ ou ···) e escolha \"Abrir no "+(ios?"Safari":"Chrome")+"\". Lá vai aparecer a opção de instalar.");
+  else if (ios) mostrarInstalar("No iPhone (Safari): toque em Compartilhar (quadrado com seta) e depois em \"Adicionar à Tela de Início\".");
+  else if (android) mostrarInstalar("No Android: toque em ⋮ no Chrome e depois em \"Instalar app\" ou \"Adicionar à tela inicial\".");
+  else mostrarInstalar("No computador (Chrome ou Edge): clique no ícone de instalar na barra de endereço, ou no menu ⋮ → \"Instalar\".");
+}
+window.addEventListener("beforeinstallprompt", e=>{ e.preventDefault(); deferred=e; if (adiado) return; $("install").hidden=false; $("btn-install").hidden=false; $("install-text").textContent="Tenha a LMB na tela inicial, como um app."; });
+window.addEventListener("appinstalled", ()=>{ $("install").hidden=true; toast("App instalado! Procure o ícone da LMB na tela inicial."); });
 $("btn-install").onclick = async ()=>{ if(!deferred) return; deferred.prompt(); await deferred.userChoice; deferred=null; $("install").hidden=true; };
+$("btn-install-depois").onclick = ()=>{ $("install").hidden=true; try{ localStorage.setItem("lmb-install-depois", String(Date.now()+3*86400000)); }catch(e){} };
 // atualização automática: procura versão nova ao abrir/voltar ao app e recarrega quando ela assume
 if ("serviceWorker" in navigator) {
   const tinhaVersao = !!navigator.serviceWorker.controller; let recarregou = false;
