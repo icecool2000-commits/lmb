@@ -1,6 +1,6 @@
 // Cache simples: a página abre mesmo com internet fraca; os dados vêm do Firebase.
-const C = "lmb-v29";
-const FILES = ["./", "index.html", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "logo.png", "fundo-topo.jpg", "torneio.js", "torneio-core.js", "torneio-demo.js", "exportar.js", "midias.js", "aovivo.js", "rodizio.js", "estatequipe.js", "acesso.js", "torneio.css"];
+const C = "lmb-v30";
+const FILES = ["./", "index.html", "config.js", "manifest.webmanifest", "icon-192.png", "icon-512.png", "apple-touch-icon.png", "logo.png", "fundo-topo.jpg", "torneio.js", "torneio-core.js", "torneio-demo.js", "exportar.js", "midias.js", "aovivo.js", "rodizio.js", "basquete.js", "estatequipe.js", "acesso.js", "torneio.css"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(C).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", e => {
