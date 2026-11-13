@@ -39,14 +39,35 @@
   // bm: 1129 x 589 (bola atrás do BIRIBOL, corte em y=174; centro da bola ~ (593, 261)); lmb: 800 x 800 (bola em (402.5, 250), anel centrado em (400, 392))
   const LOGO = {
     bm: { w: 1129, h: 589, pasta: "anim/bm-" },
-    lmb: { w: 800, h: 800, pasta: "anim/lmb-" },
+    lmb: { w: 800, h: 800, pasta: "anim/lmb-", lottie: "anim/lmb-logo.json" },
   };
   const E = { saida: "cubic-bezier(.16,1,.3,1)", suave: "cubic-bezier(.45,0,.25,1)", mola: "cubic-bezier(.34,1.56,.64,1)" };
+
+  // logo vetorial em Lottie (SVG vetorizado no Recraft e animado em camadas): usado quando o app tem o arquivo e o player lottie
+  function logoLottie(el, tipo, op, L) {
+    el.classList.add("ba-logo", "ba-" + tipo);
+    el.style.aspectRatio = L.w + " / " + L.h;
+    el.textContent = "";
+    const box = div("", el); Object.assign(box.style, { position: "absolute", inset: "0" });
+    const an = window.lottie.loadAnimation({ container: box, renderer: "svg", loop: false, autoplay: false, path: L.lottie, rendererSettings: { preserveAspectRatio: "xMidYMid meet", progressiveLoad: false } });
+    let falhou = false;
+    const pronto = new Promise(ok => { an.addEventListener("DOMLoaded", ok); an.addEventListener("data_failed", () => { falhou = true; ok(); }); setTimeout(ok, 4000); });
+    const fim = () => an.goToAndStop(an.totalFrames - 1, true);
+    function entrada() { if (falhou) return 0; an.goToAndPlay(0, true); return Math.round(an.getDuration() * 1000); }
+    const api = { entrada, pulso() {}, ciclo() {}, parar() { an.stop(); }, pronto, el, lottie: an };
+    if (reduz()) { pronto.then(fim); return api; }
+    const comecar = () => pronto.then(() => { if (op.entrada) entrada(); else fim(); });
+    api.comecar = comecar;
+    if (op.auto !== false) { if (op.depoisDe) window.addEventListener(op.depoisDe, () => setTimeout(comecar, op.atraso || 0), { once: true }); else setTimeout(comecar, op.atraso || 0); }
+    if (op.toque !== false) el.addEventListener("click", () => pronto.then(entrada));
+    return api;
+  }
 
   function logo(el, tipo, op) {
     op = op || {};
     injetarCSS();
     const L = LOGO[tipo]; if (!L) return null;
+    if (L.lottie && window.lottie && op.lottie !== false) return logoLottie(el, tipo, op, L);
     el.classList.add("ba-logo", "ba-" + tipo);
     el.style.aspectRatio = L.w + " / " + L.h;
     el.textContent = "";
