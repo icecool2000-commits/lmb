@@ -2,7 +2,9 @@
    Mesmo arquivo nos dois apps (fonte em torneio-src). Script clássico: expõe window.BiribolAnim = {logo, abertura}.
    - logo(el, tipo, {entrada, ciclo}): monta o logo em camadas (imagens em anim/) e anima com Web Animations
      (só transform/opacity/clip-path: roda no compositor). tipo "bm" = Biribol Mococa, "lmb" = Liga Metropolitana.
-   - abertura(cfg): tela cheia com uma cena em SVG numa piscina de biribol (levantamento, atacante salta e corta,
+   - abertura(cfg) com cfg.video: vídeo de lances reais (60 fps) que termina num clarão branco e se desfaz no logo
+     (logo em camadas/Lottie, ou cfg.logoImg = imagem simples); se o vídeo falhar, cai na cena em SVG.
+   - abertura(cfg) sem vídeo: tela cheia com uma cena em SVG numa piscina de biribol (levantamento, atacante salta e corta,
      bola explode na água, PONTO!), uma onda cobre a tela e revela o logo animado; final parado 2 s; some suave.
      Linha do tempo própria em requestAnimationFrame (tudo calculado pelo relógio, sem passos soltos). */
 (function () {
@@ -27,6 +29,14 @@
   padding:max(16px,env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) max(16px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 .ba-ab .ba-final .ba-logo{cursor:default}
 .ba-ab .ba-sub{font-family:"Anton",Impact,"Arial Narrow Bold",sans-serif;text-transform:uppercase;letter-spacing:.08em;color:#fff;font-size:clamp(14px,4.2vw,20px);text-align:center;opacity:0;margin:0;text-wrap:balance}
+.ba-ab-video{background:#000}
+.ba-ab-video video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+@media (min-aspect-ratio:4/5){.ba-ab-video video{object-fit:contain}}
+.ba-ab .ba-branco{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.ba-logoimg{position:relative;aspect-ratio:1;border-radius:22%;overflow:hidden;box-shadow:0 0 0 2px rgb(255 255 255 / .18),0 18px 60px rgb(0 0 0 / .55);opacity:0}
+.ba-logoimg img{width:100%;height:100%;display:block}
+.ba-logoimg .ba-reflexo{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.ba-logoimg .ba-reflexo i{position:absolute;top:-10%;bottom:-10%;left:0;width:40%;opacity:0;background:linear-gradient(90deg,transparent,rgb(255 255 255 / .12) 30%,rgb(255 255 255 / .7) 50%,rgb(255 255 255 / .12) 70%,transparent)}
 .ba-ab .ba-pular{position:absolute;left:50%;bottom:max(18px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3;background:rgb(0 0 0 / .35);color:#ddd;border:1px solid rgb(255 255 255 / .3);border-radius:999px;padding:6px 16px;font:500 13px system-ui,sans-serif;min-height:0;cursor:pointer}
 `;
   let estilo = false;
@@ -202,6 +212,82 @@
     const chave = cfg.chave || ("ab-" + cfg.tipo);
     let ja = false; try { ja = sessionStorage.getItem(chave) === "1"; sessionStorage.setItem(chave, "1"); } catch (e) {}
     if (ja || reduz() || !document.body.animate) { window.__semAbertura = true; return null; }
+    return cfg.video ? aberturaVideo(cfg) : aberturaSVG(cfg);
+  }
+
+  // ================= abertura em vídeo (cenas reais, 60 fps) =================
+  // O vídeo termina num clarão branco; o clarão se desfaz sobre o logo animado, que fica parado 2 s e some com o app subindo.
+  function aberturaVideo(cfg) {
+    const C = cfg.cores || {};
+    const ov = document.createElement("div"); ov.className = "ba-ab ba-ab-video"; ov.id = "abertura";
+    ov.setAttribute("role", "img"); ov.setAttribute("aria-label", cfg.rotulo || "Abertura do app: lances reais de biribol na piscina e o logo animado");
+    document.body.prepend(ov);
+    const v = document.createElement("video");
+    v.muted = true; v.defaultMuted = true; v.playsInline = true; v.autoplay = true; v.preload = "auto";
+    v.setAttribute("muted", ""); v.setAttribute("playsinline", ""); v.setAttribute("webkit-playsinline", ""); v.setAttribute("aria-hidden", "true");
+    if (cfg.poster) v.poster = cfg.poster;
+    v.src = cfg.video; ov.append(v);
+    const fim = div("ba-final", ov);
+    fim.style.background = `radial-gradient(70% 50% at 50% 45%, ${C.finalCor || "#15418a"}, ${(C.fundo || ["#040c1b"])[0]} 75%)`;
+    const caixa = div("", fim);
+    let L;
+    if (cfg.logoImg) {
+      caixa.className = "ba-logoimg"; caixa.style.width = "min(68vw, 340px, 42vh)";
+      const im = img(cfg.logoImg, caixa); im.alt = "";
+      const br = div("ba-reflexo", caixa), faixa = document.createElement("i"); br.append(faixa);
+      const pronto = (im.decode ? im.decode() : Promise.resolve()).catch(() => {});
+      L = { pronto, entrada() {
+        caixa.animate([{ opacity: 0, transform: "scale(.72) rotate(-6deg)" }, { opacity: 1, offset: .45, transform: "scale(1.05) rotate(1deg)" }, { opacity: 1, transform: "none" }], { duration: 1100, easing: E.saida, fill: "both" });
+        faixa.animate([{ transform: "translateX(-160%) skewX(-18deg)", opacity: 0 }, { opacity: 1, offset: .2 }, { opacity: 1, offset: .8 }, { transform: "translateX(320%) skewX(-18deg)", opacity: 0 }], { duration: 1000, delay: 750, easing: E.suave, fill: "both" });
+        return 1800;
+      } };
+    } else {
+      caixa.style.width = cfg.tipo === "lmb" ? "min(72vw, 360px, 46vh)" : "min(86vw, 520px)";
+      L = logo(caixa, cfg.tipo, { entrada: true, auto: false, ciclo: false, toque: false });
+    }
+    const sub = document.createElement("p"); sub.className = "ba-sub"; sub.textContent = cfg.legenda || ""; fim.append(sub);
+    const branco = div("ba-branco", ov);
+    const pular = document.createElement("button"); pular.type = "button"; pular.className = "ba-pular"; pular.textContent = "Pular abertura"; ov.append(pular);
+
+    let acabou = false, comecou = false, final = false, tFim = 0;
+    function irFinal() {
+      if (final || acabou) return; final = true;
+      branco.style.opacity = "1"; fim.style.opacity = "1";
+      // o clarão branco do fim do vídeo continua e se desfaz por cima do logo
+      branco.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 750, easing: "cubic-bezier(.3,0,.2,1)", fill: "forwards" });
+      requestAnimationFrame(() => { v.style.visibility = "hidden"; });
+      const durLogo = L.entrada();
+      sub.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 600, delay: Math.max(150, durLogo - 900), easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" });
+      tFim = setTimeout(sair, durLogo + 2000);
+    }
+    // acompanha o vídeo quadro a quadro para emendar no clarão sem esperar o "ended"
+    function vigia() {
+      if (acabou || final) return;
+      if (v.duration && v.currentTime >= v.duration - .06) { irFinal(); return; }
+      if (v.requestVideoFrameCallback) v.requestVideoFrameCallback(vigia); else requestAnimationFrame(vigia);
+    }
+    v.addEventListener("ended", irFinal);
+    v.addEventListener("playing", () => { if (comecou) return; comecou = true; ov.classList.add("rodando"); vigia(); });
+    const falhou = () => {
+      if (comecou || acabou) return;
+      if (cfg.cores && cfg.placar) { acabou = true; ov.remove(); aberturaSVG(cfg); } else sair();
+    };
+    v.addEventListener("error", falhou);
+    const p = v.play(); if (p && p.catch) p.catch(falhou);
+    function sair() {
+      if (acabou) return; acabou = true; clearTimeout(tFim); ov.style.pointerEvents = "none";
+      window.dispatchEvent(new Event("abertura-fim"));
+      ov.animate([{ opacity: getComputedStyle(ov).opacity }, { opacity: 0 }], { duration: 900, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards" }).onfinish = () => { v.removeAttribute("src"); v.load(); ov.remove(); };
+      if (final) caixa.animate([{ transform: "none" }, { transform: "scale(.94)" }], { duration: 900, easing: "cubic-bezier(.45,0,.2,1)", fill: "forwards", composite: "add" });
+      document.querySelectorAll(cfg.app || ".wrap").forEach(app => app.animate([{ opacity: 0, transform: "translateY(14px) scale(.985)" }, { opacity: 1, transform: "none" }], { duration: 900, delay: 150, easing: "cubic-bezier(.2,.7,.2,1)", fill: "backwards" }));
+    }
+    ov.addEventListener("click", sair);
+    // internet lenta: se o vídeo não começar em 3,5 s, o app abre direto
+    setTimeout(() => { if (!comecou) sair(); }, 3500);
+    return { sair };
+  }
+
+  function aberturaSVG(cfg) {
     const C = cfg.cores;
     const ov = document.createElement("div"); ov.className = "ba-ab"; ov.id = "abertura";
     ov.setAttribute("role", "img"); ov.setAttribute("aria-label", cfg.rotulo || "Abertura do app: atacante corta e marca o ponto na piscina de biribol");
