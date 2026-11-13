@@ -187,167 +187,294 @@
     document.body.prepend(ov);
     ov.style.background = C.fundo[0];
 
-    // ---- cena SVG (400 x 720) ----
+    // ================= cena (SVG 400 x 720) =================
     const svg = elx("svg", { class: "ba-cena", viewBox: "0 0 400 720", "aria-hidden": "true" }, ov);
     svg.style.opacity = "0";
     const ajusta = () => svg.setAttribute("preserveAspectRatio", innerWidth / innerHeight < .62 ? "xMidYMid slice" : "xMidYMid meet");
     ajusta(); addEventListener("resize", ajusta);
     const defs = elx("defs", {}, svg);
-    const grad = (id, cores, vert = true, extra) => { const g = elx(vert ? "linearGradient" : "radialGradient", Object.assign({ id }, vert ? { x1: 0, y1: 0, x2: 0, y2: 1 } : {}, extra || {}), defs); cores.forEach(([o, c, op]) => elx("stop", { offset: o, "stop-color": c, "stop-opacity": op == null ? 1 : op }, g)); return g; };
-    grad("ba-salao", [[0, C.fundo[0]], [.55, C.fundo[1]], [1, C.fundo[0]]]);
-    grad("ba-agua", [[0, C.agua[0]], [1, C.agua[1]]]);
-    grad("ba-aguaf", [[0, C.agua[0], .55], [.25, C.agua[1], .78], [1, C.agua[2], .95]]);
-    grad("ba-luz", [[0, "#fff", .9], [1, "#fff", 0]], false);
-    grad("ba-feixe", [[0, "#fff", .16], [1, "#fff", 0]]);
-    const blur = elx("filter", { id: "ba-blur", x: "-50%", y: "-50%", width: "200%", height: "200%" }, defs); elx("feGaussianBlur", { stdDeviation: 3 }, blur);
-    const pat = elx("pattern", { id: "ba-azulejo", width: 16, height: 16, patternUnits: "userSpaceOnUse" }, defs);
-    elx("rect", { width: 16, height: 16, fill: C.azulejo[0] }, pat); elx("path", { d: "M0 .5H16M.5 0V16", stroke: C.azulejo[1], "stroke-width": 1 }, pat);
+    let nId = 0; const uid = p => "ba" + p + (++nId);
+    const lin = (stops, at) => { const id = uid("g"); const g = elx("linearGradient", Object.assign({ id }, at || { x1: 0, y1: 0, x2: 0, y2: 1 }), defs); stops.forEach(([o, c, op]) => elx("stop", { offset: o, "stop-color": c, "stop-opacity": op == null ? 1 : op }, g)); return "url(#" + id + ")"; };
+    const rad = (stops, at) => { const id = uid("r"); const g = elx("radialGradient", Object.assign({ id }, at || {}), defs); stops.forEach(([o, c, op]) => elx("stop", { offset: o, "stop-color": c, "stop-opacity": op == null ? 1 : op }, g)); return "url(#" + id + ")"; };
+    const tom = (hex, k) => { const n = parseInt(hex.slice(1), 16); return "#" + [n >> 16, (n >> 8) & 255, n & 255].map(v => clamp(Math.round(k >= 1 ? v + (255 - v) * (k - 1) : v * k), 0, 255).toString(16).padStart(2, "0")).join(""); };
+    // ondulação da água (refração dos corpos submersos e do reflexo)
+    const fl = elx("filter", { id: "ba-onda", x: "-10%", y: "-10%", width: "120%", height: "130%" }, defs);
+    elx("feTurbulence", { type: "fractalNoise", baseFrequency: "0.012 0.09", numOctaves: 2, seed: 4, result: "n", stitchTiles: "stitch" }, fl);
+    const flOff = elx("feOffset", { in: "n", dx: 0, dy: 0, result: "m" }, fl);
+    elx("feDisplacementMap", { in: "SourceGraphic", in2: "m", scale: 7, xChannelSelector: "R", yChannelSelector: "G" }, fl);
+    const cpCima = uid("c"), cpBaixo = uid("c");
+    elx("rect", { x: -400, y: -2000, width: 800, height: 2470 }, elx("clipPath", { id: cpCima, clipPathUnits: "userSpaceOnUse" }, defs));
+    elx("rect", { x: -400, y: 470, width: 800, height: 1000 }, elx("clipPath", { id: cpBaixo, clipPathUnits: "userSpaceOnUse" }, defs));
 
     const cam = elx("g", {}, svg);
-    // salão: fundo, luzes, arquibancada com faixa da equipe
-    elx("rect", { x: -200, y: -100, width: 800, height: 920, fill: "url(#ba-salao)" }, cam);
-    for (let i = 0; i < 7; i++) {
-      const x = 20 + i * 60;
-      elx("polygon", { points: `${x - 6},40 ${x + 6},40 ${x + 60},460 ${x - 60},460`, fill: "url(#ba-feixe)", opacity: .7 }, cam);
-      elx("ellipse", { cx: x, cy: 40, rx: 16, ry: 6, fill: "url(#ba-luz)" }, cam);
-      elx("ellipse", { cx: x, cy: 40, rx: 4, ry: 2, fill: "#fff" }, cam);
+    // ---- ginásio: teto com treliças, janelas com luz do dia, refletores ----
+    elx("rect", { x: -220, y: -120, width: 840, height: 980, fill: lin([[0, C.fundo[0]], [.45, C.fundo[1]], [1, C.fundo[0]]]) }, cam);
+    const teto = elx("g", { stroke: tom(C.fundo[1], 1.35), "stroke-width": 1.3, opacity: .55 }, cam);
+    for (let i = -4; i < 14; i++) { elx("line", { x1: i * 40 - 20, y1: 0, x2: i * 40 + 20, y2: 46 }, teto); elx("line", { x1: i * 40 + 20, y1: 0, x2: i * 40 - 20, y2: 46 }, teto); }
+    elx("line", { x1: -220, y1: 0, x2: 620, y2: 0, "stroke-width": 3 }, teto); elx("line", { x1: -220, y1: 46, x2: 620, y2: 46, "stroke-width": 3 }, teto);
+    const janelas = elx("g", {}, cam);
+    for (let i = -3; i < 10; i++) {
+      const x = i * 62 + 6;
+      elx("rect", { x, y: 64, width: 54, height: 120, fill: lin([[0, "#dff3ff"], [.6, "#a9d3ee"], [1, "#7fb4d8"]]), opacity: .55 }, janelas);
+      elx("path", { d: `M${x + 27} 64V184M${x} 104H${x + 54}M${x} 144H${x + 54}`, stroke: C.fundo[0], "stroke-width": 2.2, opacity: .7 }, janelas);
     }
-    for (let i = 0; i < 6; i++) elx("rect", { x: -200, y: 250 + i * 22, width: 800, height: 12, fill: "#000", opacity: .18 + i * .03 }, cam);
-    const faixaY = 400;
-    C.faixa.forEach((c, i) => elx("rect", { x: -200, y: faixaY + i * 8, width: 800, height: 8, fill: c }, cam));
+    elx("rect", { x: -220, y: 184, width: 840, height: 8, fill: "#000", opacity: .35 }, cam);
+    // feixes de luz das janelas sobre a quadra
+    for (let i = 0; i < 6; i++) { const x = -40 + i * 90; elx("polygon", { points: `${x},184 ${x + 54},184 ${x + 150},470 ${x + 70},470`, fill: lin([[0, "#fff", .16], [1, "#fff", 0]]) }, cam); }
+    // placar eletrônico do ginásio
+    const pg = elx("g", { transform: "translate(200 212)" }, cam);
+    elx("rect", { x: -46, y: -15, width: 92, height: 30, rx: 3, fill: "#0b0b0d", stroke: "#3a3a3f", "stroke-width": 2 }, pg);
+    const pgTxt = elx("text", { x: 0, y: 6, "text-anchor": "middle", "font-family": "'Courier New',monospace", "font-weight": 700, "font-size": 15, fill: "#ffb020", "letter-spacing": 1 }, pg);
+    // arquibancada com torcida
+    const arq = elx("g", {}, cam);
+    const torcida = [];
+    let sd = 11; const rnd = () => (sd = (sd * 9301 + 49297) % 233280) / 233280;
+    const coresTorcida = [C.casa.touca, C.fora.sunga, "#e8e8e8", "#3b3b40", "#6b4b3a", C.destaque, "#2c5f8a", "#8a2c2c", "#d8c8a8"];
+    for (let r = 0; r < 6; r++) {
+      const y = 246 + r * 26;
+      elx("rect", { x: -220, y: y + 12, width: 840, height: 14, fill: tom(C.fundo[1], .7 + r * .05) }, arq);
+      elx("rect", { x: -220, y: y + 12, width: 840, height: 2, fill: "#fff", opacity: .08 }, arq);
+      const fila = elx("g", {}, arq); torcida.push(fila);
+      for (let x = -210 + rnd() * 8; x < 610; x += 9 + rnd() * 6) {
+        if (rnd() < .12) continue;
+        const c = coresTorcida[Math.floor(rnd() * coresTorcida.length)], pele = ["#e0ac69", "#c68642", "#8d5524", "#f1c27d", "#5c3a21"][Math.floor(rnd() * 5)];
+        elx("path", { d: `M${x - 4.5} ${y + 13} Q${x} ${y + 3} ${x + 4.5} ${y + 13} Z`, fill: c, opacity: .9 }, fila);
+        elx("circle", { cx: x, cy: y + 1, r: 3, fill: pele, opacity: .9 }, fila);
+      }
+    }
+    // faixa da equipe na mureta e névoa de profundidade
+    const faixaY = 404;
+    C.faixa.forEach((c, i) => elx("rect", { x: -220, y: faixaY + i * 8, width: 840, height: 8, fill: c }, cam));
     const txt = elx("text", { x: 200, y: faixaY + 15.6, "text-anchor": "middle", "font-family": "Anton,Impact,sans-serif", "font-size": 9.5, fill: C.faixaTexto || "#fff", "letter-spacing": 3 }, cam);
     txt.textContent = (cfg.faixaTexto + "   •   ").repeat(4);
-    // borda da piscina (fundo) e água de trás
-    const WY = 470, FY = 600;
-    elx("rect", { x: -200, y: WY - 26, width: 800, height: 26, fill: "url(#ba-azulejo)" }, cam);
-    elx("rect", { x: -200, y: WY - 30, width: 800, height: 5, fill: C.borda }, cam);
-    const aguaTras = elx("path", { fill: "url(#ba-agua)" }, cam);
-    // rede: postes e malha (leve perspectiva)
-    const rede = elx("g", {}, cam);
-    elx("rect", { x: 186, y: 320, width: 5, height: 280, fill: C.poste, rx: 2 }, rede);
-    elx("rect", { x: 214, y: 336, width: 6, height: 280, fill: C.poste, rx: 2 }, rede);
-    const malha = elx("g", { stroke: "#fff", "stroke-opacity": .55, "stroke-width": .8 }, rede);
-    for (let i = 0; i <= 10; i++) { const u = i / 10; elx("line", { x1: lerp(188, 217, u), y1: lerp(342, 358, u), x2: lerp(188, 217, u), y2: lerp(382, 401, u) }, malha); }
-    for (let i = 0; i <= 5; i++) { const u = i / 5; elx("line", { x1: 188, y1: lerp(342, 382, u), x2: 217, y2: lerp(358, 401, u) }, malha); }
-    elx("line", { x1: 186, y1: 341, x2: 220, y2: 358, stroke: "#fff", "stroke-width": 4, "stroke-linecap": "round" }, rede);
-    elx("line", { x1: 186, y1: 383, x2: 220, y2: 402, stroke: "#fff", "stroke-width": 2, "stroke-linecap": "round", opacity: .8 }, rede);
-    const antena = elx("line", { x1: 186, y1: 318, x2: 186, y2: 342, stroke: C.destaque, "stroke-width": 2.5 }, rede);
+    elx("rect", { x: -220, y: 40, width: 840, height: 400, fill: lin([[0, "#cfe6f5", .0], [.6, "#cfe6f5", .1], [1, "#cfe6f5", .16]]) }, cam);
+    // ---- piscina: deck do fundo, borda, água em perspectiva ----
+    const WY = 470, BORDA_F = 452, BORDA_P = 676;
+    elx("rect", { x: -220, y: 428, width: 840, height: 24, fill: lin([[0, tom(C.azulejo[1], .8)], [1, C.azulejo[0]]]) }, cam);
+    const deckF = elx("g", { stroke: tom(C.azulejo[1], .85), "stroke-width": .6, opacity: .7 }, cam);
+    for (let x = -220; x < 620; x += 14) elx("line", { x1: x, y1: 428, x2: x + (x - 200) * .06, y2: 452 }, deckF);
+    elx("rect", { x: -220, y: 449, width: 840, height: 5, rx: 2, fill: "#f4f7f9" }, cam);
+    elx("rect", { x: -220, y: 454, width: 840, height: 3, fill: "#000", opacity: .25 }, cam);
+    const agua = elx("rect", { x: -220, y: 456, width: 840, height: 240, fill: lin([[0, C.agua[0]], [.12, C.agua[1]], [.7, C.agua[2]], [1, tom(C.agua[2], .7)]]) }, cam);
+    // reflexo das janelas na água do fundo
+    elx("rect", { x: -220, y: 456, width: 840, height: 22, fill: lin([[0, "#fff", .45], [1, "#fff", 0]]) }, cam);
 
-    // ---- atletas ----
-    const camadaJog = elx("g", {}, cam);
-    function atleta(x0, f, time, pele, escala) {
-      const s = escala || 1;
-      const root = elx("g", { transform: `translate(${x0} 0) scale(${f * s} ${s}) translate(0 ${(1 - s) * FY / s})` }, camadaJog);
-      const corpo = elx("g", {}, root);
-      const pernaT = elx("g", {}, corpo), pernaF = elx("g", {}, corpo);
-      const perna = (g, cor) => { elx("path", { d: "M0 518 L2 556 L0 594", stroke: cor, "stroke-width": 10, fill: "none", "stroke-linecap": "round", "stroke-linejoin": "round" }, g); };
-      perna(pernaT, sombra(pele)); perna(pernaF, pele);
-      const bracoT = braco(corpo, sombra(pele), -9);
-      elx("path", { d: "M-14 442 C-17 470 -14 500 -12 520 L12 520 C14 500 17 470 14 442 Z", fill: pele }, corpo);
-      elx("path", { d: "M-14 442 C-17 470 -14 500 -12 520 L-4 520 C-6 495 -8 470 -6 442 Z", fill: "#000", opacity: .14 }, corpo);
-      elx("path", { d: "M-13 504 L13 504 L14 526 L3 530 L0 524 L-3 530 L-14 526 Z", fill: time.sunga }, corpo);
-      elx("rect", { x: -13, y: 504, width: 26, height: 3, fill: time.detalhe, opacity: .9 }, corpo);
-      elx("rect", { x: -4, y: 426, width: 8, height: 12, fill: pele }, corpo);
-      elx("circle", { cx: 0, cy: 418, r: 12, fill: pele }, corpo);
-      elx("circle", { cx: 12, cy: 419, r: 2.2, fill: pele }, corpo);
-      elx("path", { d: "M-12.5 417 A12.5 12.5 0 0 1 12.5 414 L12 410 C6 404 -6 403 -12 410 Z", fill: time.touca }, corpo);
-      elx("path", { d: "M-12.5 417 A12.5 12.5 0 0 1 -4 405.5 L-2 410 C-6 411 -9 414 -12.5 417 Z", fill: "#fff", opacity: .25 }, corpo);
-      elx("circle", { cx: 7, cy: 416, r: 1.4, fill: "#1a1a1a" }, corpo);
-      const bracoF = braco(corpo, pele, 9);
-      const st = { dy: 0, lean: 0, t1: 0, t2: 0, f1: 0, f2: 0, perna: 0 };
+    // ---- rede (vista em perspectiva: poste do fundo pequeno, poste da frente grande) ----
+    const P_F = { x: 208, top: 330, base: 454 }, P_N = { x: 244, top: 300, base: 690 };
+    const redeTras = elx("g", {}, cam);
+    elx("rect", { x: P_F.x - 2, y: P_F.top, width: 4, height: P_F.base - P_F.top, fill: lin([[0, "#9aa4ae"], [.5, "#eef2f5"], [1, "#8a949e"]], { x1: 0, y1: 0, x2: 1, y2: 0 }) }, redeTras);
+
+    // ---- atletas (4 x 4), corpos em <defs> e desenhados por <use> em 3 camadas ----
+    const camReflexo = elx("g", { filter: "url(#ba-onda)", opacity: .2 }, cam);
+    const camSub = elx("g", { filter: "url(#ba-onda)", opacity: .32 }, cam);
+    const superficie = elx("g", {}, cam);
+    const camCima = elx("g", {}, cam);
+    const camEspuma = elx("g", {}, cam);
+
+    function grad(pele) {
       return {
-        st, root,
-        aplicar() {
-          corpo.setAttribute("transform", `translate(0 ${st.dy}) rotate(${st.lean} 0 518)`);
-          bracoT.set(st.t1, st.t2); bracoF.set(st.f1, st.f2);
-          pernaT.setAttribute("transform", `rotate(${st.perna * .7} 0 518)`); pernaF.setAttribute("transform", `rotate(${st.perna} 0 518)`);
+        lado: lin([[0, tom(pele, .62)], [.3, pele], [.55, tom(pele, 1.18)], [.78, pele], [1, tom(pele, .68)]], { x1: 0, y1: 0, x2: 1, y2: 0 }),
+        tras: lin([[0, tom(pele, .5)], [.45, tom(pele, .78)], [1, tom(pele, .55)]], { x1: 0, y1: 0, x2: 1, y2: 0 }),
+        tronco: lin([[0, tom(pele, .58)], [.35, tom(pele, .9)], [.7, tom(pele, 1.12)], [1, tom(pele, .85)]], { x1: 0, y1: 0, x2: 1, y2: 0 }),
+        rosto: lin([[0, tom(pele, .8)], [1, tom(pele, 1.1)]], { x1: 0, y1: 0, x2: 1, y2: 0 }),
+      };
+    }
+    // segmento de membro (afunilado, com "músculo")
+    const seg = (L, w0, w1, b) => `M${-w0 / 2} 0 C${-w0 / 2 - b} ${L * .32} ${-w1 / 2 - b * .3} ${L * .7} ${-w1 / 2} ${L} A${w1 / 2} ${w1 / 2} 0 0 0 ${w1 / 2} ${L} C${w1 / 2 + b * .2} ${L * .7} ${w0 / 2 + b * .6} ${L * .3} ${w0 / 2} 0 A${w0 / 2} ${w0 / 2 * .7} 0 0 0 ${-w0 / 2} 0 Z`;
+    const MAO = "M-3.6 -1 C-6 4 -5.6 9 -2.4 12.5 C-.6 14 2.4 14 3.8 12 C5.8 9 5.6 4 3.8 -1 Z M3.6 2 C6.8 2.6 8 5 7.2 7 C6.4 8 5 7.2 4.4 6 Z";
+    function braco(pai, G, frente) {
+      const g1 = elx("g", {}, pai);
+      elx("path", { d: seg(30, 10.5, 8, 2.4), fill: frente ? G.lado : G.tras }, g1);
+      if (frente) elx("path", { d: "M-2 4 C-1 12 -1 20 -2 26", stroke: "#fff", "stroke-opacity": .28, "stroke-width": 1.4, fill: "none", "stroke-linecap": "round" }, g1);
+      const g2 = elx("g", {}, g1);
+      elx("path", { d: seg(28, 8, 5.6, 1.6), fill: frente ? G.lado : G.tras }, g2);
+      const g3 = elx("g", {}, g2);
+      elx("path", { d: MAO, fill: frente ? G.lado : G.tras }, g3);
+      return { set(x, y, a, b, c) { g1.setAttribute("transform", `translate(${x} ${y}) rotate(${a})`); g2.setAttribute("transform", `translate(0 29) rotate(${b})`); g3.setAttribute("transform", `translate(0 27.5) rotate(${c || 0})`); } };
+    }
+    function perna(pai, G, frente) {
+      const g1 = elx("g", {}, pai);
+      elx("path", { d: seg(44, 15, 10, 2.6), fill: frente ? G.lado : G.tras }, g1);
+      const g2 = elx("g", {}, g1);
+      elx("path", { d: seg(42, 10.5, 6.5, 2.4), fill: frente ? G.lado : G.tras }, g2);
+      elx("path", { d: "M-3.5 40 C-2 44 6 45 13 44 C14 42 12 40 4 38 Z", fill: frente ? G.lado : G.tras }, g2);
+      return { set(x, y, a, b) { g1.setAttribute("transform", `translate(${x} ${y}) rotate(${a})`); g2.setAttribute("transform", `translate(0 43) rotate(${b})`); } };
+    }
+    let nAtl = 0;
+    const claro = hex => { const n = parseInt(hex.slice(1), 16); return ((n >> 16) * .299 + ((n >> 8) & 255) * .587 + (n & 255) * .114) > 170; };
+    function atleta(x, yAgua, s, f, time, pele, num) {
+      const id = uid("a"), G = grad(pele);
+      const corpo = elx("g", { id }, defs);
+      const pT = perna(corpo, G, false), bT = braco(corpo, G, false), pF = perna(corpo, G, true);
+      // tronco de perfil (peito à direita), sombra das costas, abdômen
+      elx("path", { d: "M7 433 C10 440 18 446 19.5 456 C20.5 466 15.5 472 14 481 C13 493 13 507 12 521 L-13 521 C-12 508 -11 496 -12 486 C-14 472 -20.5 458 -16.5 446 C-13.5 440 -9 436 -7 432 Z", fill: G.tronco }, corpo);
+      elx("path", { d: "M-16.5 446 C-20.5 458 -14 472 -12 486 C-11 496 -12 508 -13 521 L-7 521 C-7 504 -7 490 -9 478 C-12 466 -14 456 -11 446 Z", fill: "#000", opacity: .18 }, corpo);
+      elx("path", { d: "M9 452 C14 456 16 463 13 469 M10 478 C11 486 11 494 10 502", stroke: tom(pele, .6), "stroke-width": 1, fill: "none", opacity: .55 }, corpo);
+      elx("path", { d: "M12 446 C17 450 19 456 19 462", stroke: "#fff", "stroke-opacity": .3, "stroke-width": 1.4, fill: "none", "stroke-linecap": "round" }, corpo);
+      // sunga
+      elx("path", { d: "M12.6 505 L13.8 528 C6 532.5 -6 532.5 -14.4 527 L-12.8 505 Z", fill: lin([[0, tom(time.sunga, .7)], [.6, time.sunga], [1, tom(time.sunga, .8)]], { x1: 0, y1: 0, x2: 1, y2: 0 }) }, corpo);
+      elx("rect", { x: -12.8, y: 505, width: 25.4, height: 2.6, fill: time.detalhe, opacity: .9 }, corpo);
+      // pescoço, cabeça de perfil, orelha, olho, touca com número
+      elx("path", { d: "M-6.5 426 L7 427 L7.5 437 L-7.5 437 Z", fill: G.tras }, corpo);
+      elx("path", { d: "M-9 418 C-10 407 -2 400 6 401 C12 402 15 407 14.5 412 L17 418.5 L14.4 419.6 L14.8 422 L13.4 423 L13.8 425.5 C12.5 429 9 430.5 5 430 L1 429 C-4 429 -8.5 424 -9 418 Z", fill: G.rosto }, corpo);
+      elx("path", { d: "M8 412.5 L12.6 412", stroke: tom(pele, .4), "stroke-width": 1.1, "stroke-linecap": "round" }, corpo);
+      elx("ellipse", { cx: 10.4, cy: 415, rx: 1.3, ry: .9, fill: "#1b1b1b" }, corpo);
+      elx("path", { d: "M10.5 425.6 L13.2 425", stroke: tom(pele, .45), "stroke-width": .9, "stroke-linecap": "round" }, corpo);
+      elx("ellipse", { cx: -1, cy: 418, rx: 2.4, ry: 3.6, fill: tom(pele, .75) }, corpo);
+      elx("path", { d: "M-9.6 420 C-11 407 -3 399.5 5.5 400.5 C11.5 401.5 14.6 405.5 14 410.5 C9 409 3 409.4 -1 411 C-3 414 -3.5 420 -2 425 C-5 426 -8 424.5 -9.6 420 Z", fill: lin([[0, tom(time.touca, 1.25)], [.5, time.touca], [1, tom(time.touca, .7)]]) }, corpo);
+      elx("path", { d: "M-6 405 C-2 401.6 4 401 8 402.4", stroke: "#fff", "stroke-opacity": .55, "stroke-width": 1.6, fill: "none", "stroke-linecap": "round" }, corpo);
+      const tn = elx("text", { x: -5.4, y: 418.5, "text-anchor": "middle", "font-family": "Arial,sans-serif", "font-weight": 700, "font-size": 6.5, fill: time.numero || (claro(time.touca) ? "#1b1b1b" : "#fff") }, corpo); tn.textContent = num;
+      const bF = braco(corpo, G, true);
+      // rastro do braço de ataque (borrão de movimento)
+      const fant = [braco(corpo, G, true), braco(corpo, G, true)];
+      const fantG = [corpo.lastChild.previousSibling, corpo.lastChild]; fantG[0].setAttribute("opacity", 0); fantG[1].setAttribute("opacity", 0);
+      // instâncias
+      const T = `translate(${x} ${yAgua}) scale(${f * s} ${s}) translate(0 -470)`;
+      const usar = (pai, extra, clip) => elx("use", { href: "#" + id, transform: T + (extra || ""), "clip-path": `url(#${clip})` }, pai);
+      usar(camReflexo, " translate(0 940) scale(1 -1)", cpCima);
+      usar(camSub, "", cpBaixo);
+      usar(camCima, "", cpCima);
+      // espuma na linha d'água em volta do corpo
+      const esp = elx("ellipse", { cx: x, cy: yAgua + 1, rx: 20 * s, ry: 3.2 * s, fill: "none", stroke: "#fff", "stroke-width": 1.4, opacity: .55 }, camEspuma);
+      const st = { dy: 0, lean: 0, f1: 8, f2: -8, f3: 0, t1: -6, t2: -10, h1: 6, k1: 8, h2: -4, k2: 10, cab: 0, fx: [0, 0] };
+      const hist = [];
+      const idx = nAtl++;
+      return {
+        st, x, yAgua, s, f,
+        aplicar(t) {
+          const bob = Math.sin(t * 2.2 + idx * 1.7) * 1.2 * (st.dy > -4 && st.dy < 6 ? 1 : 0);
+          corpo.setAttribute("transform", `translate(0 ${(st.dy + bob).toFixed(2)}) rotate(${st.lean.toFixed(2)} 0 520)`);
+          bT.set(-3, 446, st.t1, st.t2, 0); bF.set(3, 447, st.f1, st.f2, st.f3);
+          pT.set(-4, 520, st.h2, st.k2); pF.set(4, 520, st.h1, st.k1);
+          hist.push([st.f1, st.f2]); if (hist.length > 6) hist.shift();
+          const v = Math.abs(hist[hist.length - 1][0] - hist[0][0]);
+          [[2, .26], [4, .13]].forEach(([k, op], i) => { const h = hist[Math.max(0, hist.length - 1 - k)]; fant[i].set(3, 447, h[0], h[1], 0); fantG[i].setAttribute("opacity", v > 40 ? op : 0); });
+          const sub = clamp(1 - (-st.dy - 30) / 40, 0, 1);
+          esp.setAttribute("rx", (20 * s * (.7 + .3 * sub) + Math.sin(t * 3 + idx) * 1.2).toFixed(1)); esp.setAttribute("opacity", (.55 * sub).toFixed(2));
         },
       };
     }
-    function braco(pai, cor, ox) {
-      const g1 = elx("g", {}, pai);
-      elx("line", { x1: ox, y1: 445, x2: ox, y2: 475, stroke: cor, "stroke-width": 9, "stroke-linecap": "round" }, g1);
-      const g2 = elx("g", {}, g1);
-      elx("line", { x1: ox, y1: 475, x2: ox, y2: 502, stroke: cor, "stroke-width": 8, "stroke-linecap": "round" }, g2);
-      elx("circle", { cx: ox, cy: 504, r: 5.2, fill: cor }, g2);
-      return { set(a, b) { g1.setAttribute("transform", `rotate(${a} ${ox} 445)`); g2.setAttribute("transform", `rotate(${b} ${ox} 475)`); } };
-    }
-    function sombra(hex) { const n = parseInt(hex.slice(1), 16); const k = .78; return "#" + [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.round(v * k).toString(16).padStart(2, "0")).join(""); }
+    // fundo -> frente (ordem de desenho): 2 de cada lado mais longe, depois os principais
+    const atletas = [
+      atleta(46, 462, .74, 1, C.casa, "#d9a273", 3), atleta(352, 462, .74, -1, C.fora, "#8d5524", 5),
+      atleta(110, 466, .84, 1, C.casa, "#f1c27d", 8), atleta(300, 466, .84, -1, C.fora, "#e0ac69", 2),
+    ];
+    const levant = atleta(78, 476, .95, 1, C.casa, "#8d5a3b", 10);
+    const fundoDef = atleta(338, 480, 1.0, -1, C.fora, "#c68642", 7);
+    const bloq = atleta(256, 474, .93, -1, C.fora, "#b97a4f", 4);
+    const atac = atleta(162, 478, 1.04, 1, C.casa, "#a8693f", 9);
 
-    const fundoDef = atleta(338, -1, C.fora, "#d9a273", .86);
-    const levant = atleta(84, 1, C.casa, "#8d5a3b", .92);
-    const bloq = atleta(240, -1, C.fora, "#c68642", .97);
-    const atac = atleta(146, 1, C.casa, "#b97a4f", 1);
+    // poste e rede da frente (por cima dos atletas)
+    const redeF = elx("g", {}, cam);
+    const malha = elx("g", { stroke: "#fff", "stroke-opacity": .6, "stroke-width": .7 }, redeF);
+    // faixa da rede: do poste do fundo (topo 334..364) ao da frente (topo 306..352)
+    const topoF = [P_F.x, 334], baseF = [P_F.x, 362], topoN = [P_N.x, 308], baseN = [P_N.x, 354];
+    for (let i = 0; i <= 14; i++) { const u = i / 14, w = Math.pow(u, 1.15); elx("line", { x1: lerp(topoF[0], topoN[0], w), y1: lerp(topoF[1], topoN[1], w), x2: lerp(baseF[0], baseN[0], w), y2: lerp(baseF[1], baseN[1], w) }, malha); }
+    for (let i = 1; i < 6; i++) { const u = i / 6; elx("line", { x1: P_F.x, y1: lerp(topoF[1], baseF[1], u), x2: P_N.x, y2: lerp(topoN[1], baseN[1], u) }, malha); }
+    elx("line", { x1: topoF[0], y1: topoF[1], x2: topoN[0], y2: topoN[1], stroke: "#fff", "stroke-width": 3.2, "stroke-linecap": "round" }, redeF);
+    elx("line", { x1: baseF[0], y1: baseF[1], x2: baseN[0], y2: baseN[1], stroke: "#fff", "stroke-width": 1.6, "stroke-linecap": "round", opacity: .85 }, redeF);
+    elx("line", { x1: P_F.x + 3, y1: 318, x2: P_F.x + 3, y2: 336, stroke: C.destaque, "stroke-width": 1.8 }, redeF);
+    elx("rect", { x: P_N.x - 2.5, y: P_N.top, width: 5, height: P_N.base - P_N.top, rx: 3, fill: lin([[0, "#8f99a3"], [.45, "#f4f7f9"], [1, "#7d8791"]], { x1: 0, y1: 0, x2: 1, y2: 0 }) }, redeF);
+    elx("rect", { x: P_N.x - 5, y: P_N.top - 4, width: 10, height: 6, rx: 2, fill: "#5b6570" }, redeF);
 
-    // ---- água da frente (cobre o que está submerso), fundo da piscina com azulejos e borda da frente ----
-    const aguaFrente = elx("path", { fill: "url(#ba-aguaf)" }, cam);
-    const causticas = elx("g", { opacity: .22, stroke: "#fff", "stroke-width": 1.2, fill: "none" }, cam);
-    const cLinhas = []; for (let i = 0; i < 7; i++) cLinhas.push(elx("path", {}, causticas));
-    elx("rect", { x: -200, y: FY, width: 800, height: 140, fill: "url(#ba-azulejo)" }, cam);
-    elx("rect", { x: -200, y: FY, width: 800, height: 6, fill: C.destaque, opacity: .9 }, cam);
-    elx("rect", { x: -200, y: 662, width: 800, height: 80, fill: C.deck }, cam);
-    elx("rect", { x: -200, y: 662, width: 800, height: 4, fill: "#fff", opacity: .5 }, cam);
-    const brilhoAgua = elx("path", { fill: "none", stroke: "#fff", "stroke-width": 1.6, "stroke-opacity": .55 }, cam);
+    // superfície: ondulações em perspectiva e brilhos
+    const linhasAgua = []; for (let i = 0; i < 16; i++) linhasAgua.push(elx("path", { fill: "none", stroke: "#fff", "stroke-linecap": "round" }, superficie));
+    const brilhos = []; for (let i = 0; i < 26; i++) brilhos.push(elx("ellipse", { rx: 2.5, ry: .6, fill: "#fff", opacity: 0 }, superficie));
+    // borda da frente da piscina (canaleta + deck)
+    const frente = elx("g", {}, cam);
+    elx("rect", { x: -220, y: BORDA_P, width: 840, height: 7, rx: 3, fill: "#f2f5f7" }, frente);
+    elx("rect", { x: -220, y: BORDA_P + 7, width: 840, height: 7, fill: "#2b3036" }, frente);
+    const grade = elx("g", { stroke: "#5c636b", "stroke-width": 1.2 }, frente);
+    for (let x = -220; x < 620; x += 5) elx("line", { x1: x, y1: BORDA_P + 8, x2: x, y2: BORDA_P + 13 }, grade);
+    elx("rect", { x: -220, y: BORDA_P + 14, width: 840, height: 60, fill: lin([[0, C.azulejo[0]], [1, tom(C.azulejo[1], .8)]]) }, frente);
+    const deckP = elx("g", { stroke: tom(C.azulejo[1], .8), "stroke-width": .8, opacity: .8 }, frente);
+    for (let x = -220; x < 620; x += 22) elx("line", { x1: x, y1: BORDA_P + 14, x2: x + (x - 200) * .25, y2: BORDA_P + 74 }, deckP);
+    for (let i = 0; i < 4; i++) elx("line", { x1: -220, y1: BORDA_P + 22 + i * 15, x2: 620, y2: BORDA_P + 22 + i * 15 }, deckP);
 
-    // ---- bola, rastro, respingos ----
+    // ---- bola (esfera com gomos girando e sombreamento fixo) ----
     const rastro = elx("g", { "stroke-linecap": "round" }, cam);
-    const segs = []; for (let i = 0; i < 9; i++) segs.push(elx("line", { stroke: C.bola[0] }, rastro));
+    const segsR = []; for (let i = 0; i < 10; i++) segsR.push(elx("line", { stroke: "#fff" }, rastro));
     const bola = elx("g", {}, cam);
-    elx("circle", { r: 8.5, fill: C.bola[0], stroke: C.bola[2], "stroke-width": 1.2 }, bola);
-    elx("path", { d: "M-8 -2 C-3 -6 3 -6 8 -3 M-6 5 C-1 1 5 2 8 3 M-1 -8.4 C-4 -3 -4 3 -1 8.4", stroke: C.bola[1], "stroke-width": 2.4, fill: "none" }, bola);
-    elx("circle", { cx: -3, cy: -3.5, r: 2.6, fill: "#fff", opacity: .55 }, bola);
+    const cpB = uid("c"); elx("circle", { r: 8.6 }, elx("clipPath", { id: cpB }, defs));
+    elx("circle", { r: 8.6, fill: C.bola[0] }, bola);
+    const gomos = elx("g", { "clip-path": `url(#${cpB})` }, bola);
+    const gomosR = elx("g", {}, gomos);
+    elx("path", { d: "M-12 -4 C-5 -9 4 -9 12 -5 L12 -1 C4 -5 -5 -5 -12 0 Z", fill: C.bola[1] }, gomosR);
+    elx("path", { d: "M-12 5 C-4 1 5 2 12 5 L12 9 C5 6 -4 5 -12 9 Z", fill: C.bola[2] }, gomosR);
+    elx("path", { d: "M-2 -12 C-6 -4 -6 4 -2 12", stroke: tom(C.bola[1], .7), "stroke-width": 1, fill: "none" }, gomosR);
+    elx("circle", { r: 8.6, fill: rad([[0, "#fff", .0], [.55, "#000", 0], [1, "#000", .45]], { cx: .38, cy: .34, r: .75 }) }, bola);
+    elx("ellipse", { cx: -3, cy: -3.6, rx: 3, ry: 2, fill: "#fff", opacity: .7 }, bola);
+    const sombraBola = elx("ellipse", { rx: 7, ry: 1.8, fill: "#000", opacity: 0 }, cam);
+    // estouro de luz no contato
     const estrela = elx("g", { opacity: 0 }, cam);
-    for (let i = 0; i < 10; i++) { const ang = i / 10 * Math.PI * 2, r1 = i % 2 ? 9 : 22; elx("line", { x1: Math.cos(ang) * 6, y1: Math.sin(ang) * 6, x2: Math.cos(ang) * r1, y2: Math.sin(ang) * r1, stroke: "#fff", "stroke-width": 2.4, "stroke-linecap": "round" }, estrela); }
-    elx("circle", { r: 13, fill: "#fff", opacity: .8 }, estrela);
-    const respingos = elx("g", { fill: "#e9f8ff" }, cam);
-    function criaRespingo(x, y, n, forca, seed) {
-      let s = seed; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+    elx("circle", { r: 26, fill: rad([[0, "#fff", .95], [.35, "#fff8dc", .55], [1, "#fff", 0]]) }, estrela);
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2, r1 = i % 2 ? 14 : 30; elx("line", { x1: Math.cos(a) * 7, y1: Math.sin(a) * 7, x2: Math.cos(a) * r1, y2: Math.sin(a) * r1, stroke: "#fff", "stroke-width": 1.6, "stroke-linecap": "round" }, estrela); }
+    // respingos realistas: gotas com rastro, coroa de espuma, névoa e anéis em perspectiva
+    const respingos = elx("g", {}, cam);
+    function criaRespingo(x, y, n, forca, seed, escala) {
+      let s0 = seed; const r = () => (s0 = (s0 * 9301 + 49297) % 233280) / 233280;
+      const k = escala || 1;
       const gotas = []; for (let i = 0; i < n; i++) {
-        const ang = -Math.PI / 2 + (rnd() - .5) * 2.2, v = forca * (.45 + rnd() * .75);
-        gotas.push({ el: elx("circle", { r: 1.2 + rnd() * 2.8, opacity: 0 }, respingos), vx: Math.cos(ang) * v, vy: Math.sin(ang) * v, x, y });
+        const ang = -Math.PI / 2 + (r() - .5) * 2.4, v = forca * (.4 + r() * .8);
+        gotas.push({ el: elx("line", { stroke: "#f2fbff", "stroke-linecap": "round", "stroke-width": (1 + r() * 2.4) * k, opacity: 0 }, respingos), vx: Math.cos(ang) * v, vy: Math.sin(ang) * v * (.8 + r() * .5) });
       }
-      const coroa = elx("path", { fill: "#dff4ff", opacity: 0 }, respingos);
-      const aneis = [0, 1, 2].map(() => elx("ellipse", { cx: x, cy: y + 2, fill: "none", stroke: "#fff", "stroke-width": 1.4, opacity: 0 }, respingos));
+      const nevoa = elx("ellipse", { cx: x, cy: y - 6, fill: rad([[0, "#fff", .7], [1, "#fff", 0]]), opacity: 0 }, respingos);
+      const coroa = elx("path", { fill: lin([[0, "#fff", .95], [1, "#bfe6fa", .7]]), opacity: 0 }, respingos);
+      const aneis = [0, 1, 2, 3].map(() => elx("ellipse", { cx: x, cy: y + 1, fill: "none", stroke: "#fff", "stroke-width": 1.2, opacity: 0 }, respingos));
+      const espuma = elx("ellipse", { cx: x, cy: y + 1, fill: "#fff", opacity: 0 }, respingos);
       return {
         at(dt) {
-          if (dt < 0 || dt > 1.6) { gotas.forEach(g => g.el.setAttribute("opacity", 0)); coroa.setAttribute("opacity", 0); aneis.forEach(a => a.setAttribute("opacity", 0)); return; }
+          const vivo = dt >= 0 && dt <= 1.8;
           gotas.forEach(g => {
-            const px = g.x + g.vx * dt, py = g.y + g.vy * dt + 520 * dt * dt;
-            g.el.setAttribute("cx", px.toFixed(1)); g.el.setAttribute("cy", Math.min(py, y + 4).toFixed(1));
-            g.el.setAttribute("opacity", py > y + 3 ? 0 : clamp(1 - dt / 1.1, 0, 1).toFixed(2));
+            if (!vivo) { g.el.setAttribute("opacity", 0); return; }
+            const px = x + g.vx * dt, py = y + g.vy * dt + 560 * dt * dt, qx = x + g.vx * (dt - .03), qy = y + g.vy * (dt - .03) + 560 * (dt - .03) * (dt - .03);
+            g.el.setAttribute("x1", px.toFixed(1)); g.el.setAttribute("y1", Math.min(py, y + 3).toFixed(1)); g.el.setAttribute("x2", qx.toFixed(1)); g.el.setAttribute("y2", Math.min(qy, y + 3).toFixed(1));
+            g.el.setAttribute("opacity", py > y + 2 ? 0 : clamp(1.05 - dt / 1.1, 0, .95).toFixed(2));
           });
-          const h = forca * .23 * Math.sin(clamp(dt / .55, 0, 1) * Math.PI), w = forca * .16 * (.6 + EZ.out(clamp(dt / .5, 0, 1)) * .6);
-          let d = `M${x - w} ${y}`; for (let i = 0; i <= 6; i++) { const u = i / 6, xx = x - w + 2 * w * u; d += ` L${(xx + (i % 2 ? 0 : 0)).toFixed(1)} ${(y - (i % 2 ? h * (.55 + .45 * Math.sin(i)) : h * .25)).toFixed(1)}`; }
-          d += ` L${x + w} ${y} Z`; coroa.setAttribute("d", d); coroa.setAttribute("opacity", h > .5 ? .85 : 0);
-          aneis.forEach((a, i) => { const u = clamp((dt - i * .12) / 1.2, 0, 1); a.setAttribute("rx", (6 + u * (forca * .55)).toFixed(1)); a.setAttribute("ry", (2 + u * forca * .07).toFixed(1)); a.setAttribute("opacity", u > 0 && u < 1 ? (.8 * (1 - u)).toFixed(2) : 0); });
+          const h = forca * .26 * k * Math.sin(clamp(dt / .6, 0, 1) * Math.PI), w = forca * .15 * k * (.6 + EZ.out(clamp(dt / .55, 0, 1)) * .7);
+          if (vivo && h > .6) {
+            let d = `M${x - w} ${y}`; const n2 = 9;
+            for (let i = 0; i <= n2; i++) { const u = i / n2, xx = x - w + 2 * w * u; const alt = i % 2 ? h * (.6 + .4 * Math.sin(i * 1.7 + 1)) : h * .3 * Math.sin(u * Math.PI); d += ` Q${(xx - w / n2).toFixed(1)} ${(y - alt * .6).toFixed(1)} ${xx.toFixed(1)} ${(y - alt).toFixed(1)}`; }
+            d += ` L${x + w} ${y} Z`; coroa.setAttribute("d", d); coroa.setAttribute("opacity", .9);
+          } else coroa.setAttribute("opacity", 0);
+          const nv = clamp(dt / 1.2, 0, 1);
+          nevoa.setAttribute("rx", (forca * .25 * k * (.5 + nv)).toFixed(1)); nevoa.setAttribute("ry", (forca * .16 * k * (.5 + nv)).toFixed(1));
+          nevoa.setAttribute("opacity", vivo ? (.55 * Math.sin(nv * Math.PI)).toFixed(2) : 0);
+          aneis.forEach((a, i) => { const u = clamp((dt - i * .14) / 1.4, 0, 1); a.setAttribute("rx", (5 + u * forca * .6 * k).toFixed(1)); a.setAttribute("ry", (1.5 + u * forca * .05 * k).toFixed(1)); a.setAttribute("opacity", u > 0 && u < 1 ? (.75 * (1 - u)).toFixed(2) : 0); });
+          const ue = clamp(dt / 1.6, 0, 1); espuma.setAttribute("rx", (forca * .12 * k * (.4 + ue)).toFixed(1)); espuma.setAttribute("ry", (forca * .02 * k * (.4 + ue)).toFixed(1)); espuma.setAttribute("opacity", vivo ? (.6 * (1 - ue)).toFixed(2) : 0);
         },
       };
     }
 
-    // ---- placar e PONTO! (fora da câmera) ----
+    // ================= placar de TV, PONTO!, vinheta =================
+    elx("rect", { x: -220, y: -120, width: 840, height: 980, fill: rad([[0, "#000", 0], [.62, "#000", 0], [1, "#000", .55]], { cx: .5, cy: .5, r: .75 }), "pointer-events": "none" }, svg);
     const hud = elx("g", { opacity: 0 }, svg);
-    elx("rect", { x: 36, y: 62, width: 328, height: 40, rx: 9, fill: "#000", opacity: .55 }, hud);
-    elx("rect", { x: 36, y: 62, width: 6, height: 40, rx: 3, fill: C.casa.touca }, hud);
-    elx("rect", { x: 358, y: 62, width: 6, height: 40, rx: 3, fill: C.fora.touca }, hud);
-    const tA = elx("text", { x: 52, y: 88, "font-family": "Anton,Impact,sans-serif", "font-size": 15, fill: "#fff", "letter-spacing": .5 }, hud); tA.textContent = cfg.placar.a;
-    const tB = elx("text", { x: 348, y: 88, "text-anchor": "end", "font-family": "Anton,Impact,sans-serif", "font-size": 15, fill: "#fff", "letter-spacing": .5 }, hud); tB.textContent = cfg.placar.b;
-    const sB = elx("text", { x: 214, y: 90, "font-family": "Anton,Impact,sans-serif", "font-size": 22, fill: "#fff" }, hud); sB.textContent = cfg.placar.sb;
-    elx("text", { x: 200, y: 89, "text-anchor": "middle", "font-family": "Anton,Impact,sans-serif", "font-size": 16, fill: "#fff", opacity: .6 }, hud).textContent = "×";
-    const gA = elx("g", {}, hud);
-    const sA0 = elx("text", { x: 186, y: 90, "text-anchor": "end", "font-family": "Anton,Impact,sans-serif", "font-size": 22, fill: "#fff" }, gA); sA0.textContent = cfg.placar.sa;
-    const sA1 = elx("text", { x: 186, y: 90, "text-anchor": "end", "font-family": "Anton,Impact,sans-serif", "font-size": 22, fill: C.destaque, opacity: 0 }, gA); sA1.textContent = cfg.placar.sa + 1;
-    const tSet = elx("text", { x: 200, y: 116, "text-anchor": "middle", "font-family": "system-ui,sans-serif", "font-size": 9, "font-weight": 700, fill: "#fff", opacity: .7, "letter-spacing": 2 }, hud); tSet.textContent = cfg.placar.set;
+    elx("rect", { x: 36, y: 62, width: 328, height: 40, rx: 6, fill: lin([[0, "#1d1f24"], [1, "#0b0c0f"]]), opacity: .88 }, hud);
+    elx("rect", { x: 36, y: 62, width: 328, height: 1.5, fill: "#fff", opacity: .25 }, hud);
+    elx("rect", { x: 36, y: 62, width: 6, height: 40, rx: 2, fill: C.casa.touca }, hud);
+    elx("rect", { x: 358, y: 62, width: 6, height: 40, rx: 2, fill: C.fora.touca }, hud);
+    const fonte = "Anton,Impact,sans-serif";
+    elx("text", { x: 52, y: 88, "font-family": fonte, "font-size": 15, fill: "#fff", "letter-spacing": .5 }, hud).textContent = cfg.placar.a;
+    elx("text", { x: 348, y: 88, "text-anchor": "end", "font-family": fonte, "font-size": 15, fill: "#fff", "letter-spacing": .5 }, hud).textContent = cfg.placar.b;
+    elx("text", { x: 214, y: 90, "font-family": fonte, "font-size": 22, fill: "#fff" }, hud).textContent = cfg.placar.sb;
+    elx("text", { x: 200, y: 89, "text-anchor": "middle", "font-family": fonte, "font-size": 16, fill: "#fff", opacity: .6 }, hud).textContent = "×";
+    const sA0 = elx("text", { x: 186, y: 90, "text-anchor": "end", "font-family": fonte, "font-size": 22, fill: "#fff" }, hud); sA0.textContent = cfg.placar.sa;
+    const sA1 = elx("text", { x: 186, y: 90, "text-anchor": "end", "font-family": fonte, "font-size": 22, fill: C.destaque, opacity: 0 }, hud); sA1.textContent = cfg.placar.sa + 1;
+    const tSet = elx("text", { x: 200, y: 116, "text-anchor": "middle", "font-family": "system-ui,sans-serif", "font-size": 9, "font-weight": 700, fill: "#fff", opacity: .75, "letter-spacing": 2 }, hud); tSet.textContent = cfg.placar.set;
+    const aoVivo = elx("g", { transform: "translate(318 118)" }, hud);
+    elx("rect", { x: -16, y: -8, width: 46, height: 13, rx: 2, fill: "#d0021b" }, aoVivo);
+    const piscaVivo = elx("circle", { cx: -10, cy: -1.5, r: 2.4, fill: "#fff" }, aoVivo);
+    elx("text", { x: 9, y: 2, "text-anchor": "middle", "font-family": "system-ui,sans-serif", "font-size": 7.5, "font-weight": 800, fill: "#fff" }, aoVivo).textContent = "AO VIVO";
     const ponto = elx("g", { opacity: 0 }, svg);
     const linhasVel = elx("g", { stroke: C.destaque, "stroke-width": 3, "stroke-linecap": "round", opacity: .8 }, ponto);
     for (let i = 0; i < 8; i++) elx("line", { x1: 60 - i * 6, y1: 168 + i * 9, x2: 120 - i * 4, y2: 168 + i * 9 }, linhasVel);
-    const pTxt = elx("text", { x: 200, y: 214, "text-anchor": "middle", "font-family": "Anton,Impact,sans-serif", "font-size": 64, fill: "#fff", stroke: C.destaque, "stroke-width": 3, "paint-order": "stroke", transform: "skewX(-10)", "letter-spacing": 1 }, ponto);
+    const pTxt = elx("text", { x: 200, y: 214, "text-anchor": "middle", "font-family": fonte, "font-size": 64, fill: "#fff", stroke: C.destaque, "stroke-width": 3, "paint-order": "stroke", transform: "skewX(-10)", "letter-spacing": 1 }, ponto);
     pTxt.textContent = cfg.ponto || "PONTO!";
+    const flash = elx("rect", { x: -220, y: -120, width: 840, height: 980, fill: "#fff", opacity: 0, "pointer-events": "none" }, svg);
+    // onda de transição
+    const onda = elx("path", { fill: C.onda[0] }, svg), onda2 = elx("path", { fill: C.onda[1] }, svg);
 
-    // ---- onda de transição ----
-    const onda = elx("path", { fill: C.onda[0] }, svg);
-    const onda2 = elx("path", { fill: C.onda[1] }, svg);
-
-    // ---- final: logo animado + legenda ----
+    // ================= final: logo animado + legenda =================
     const fim = div("ba-final", ov);
     fim.style.background = `radial-gradient(70% 50% at 50% 45%, ${C.finalCor}, ${C.fundo[0]} 75%)`;
     const caixa = div("", fim); caixa.style.width = cfg.tipo === "lmb" ? "min(72vw, 360px, 46vh)" : "min(86vw, 520px)";
@@ -355,51 +482,65 @@
     const sub = document.createElement("p"); sub.className = "ba-sub"; sub.textContent = cfg.legenda || ""; fim.append(sub);
     const pular = document.createElement("button"); pular.type = "button"; pular.className = "ba-pular"; pular.textContent = "Pular abertura"; ov.append(pular);
 
-    // ---- linha do tempo (s) ----
-    const tc = 1.86, ti = 2.12;            // contato e impacto na água
-    const bolaSet = t => { const u = clamp((t - .62) / (tc - .62), 0, 1); const p0 = [96, 380], p1 = [160, 110], p2 = [186, 290]; const x = (1 - u) * (1 - u) * p0[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0], y = (1 - u) * (1 - u) * p0[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1]; return [x, y]; };
-    const bolaCorte = t => { const u = EZ.in(clamp((t - tc) / (ti - tc), 0, 1)) * .55 + clamp((t - tc) / (ti - tc), 0, 1) * .45; return [lerp(186, 318, u), lerp(290, 470, u) - Math.sin(u * Math.PI) * 10]; };
-    // atacante
+    // ================= coreografia (s) =================
+    // contato: mão do atacante (x 162 + braço) a ~ (192, 300); bola cruza a rede e cai em (322, 478)
+    const tc = 1.86, ti = 2.12, PC = [194, 296], PI = [324, 482];
+    const bolaSet = t => { const u = clamp((t - .62) / (tc - .62), 0, 1); const p0 = [92, 384], p1 = [168, 120], p2 = PC; return [(1 - u) * (1 - u) * p0[0] + 2 * (1 - u) * u * p1[0] + u * u * p2[0], (1 - u) * (1 - u) * p0[1] + 2 * (1 - u) * u * p1[1] + u * u * p2[1]]; };
+    const bolaCorte = t => { const v = clamp((t - tc) / (ti - tc), 0, 1), u = EZ.in(v) * .5 + v * .5; return [lerp(PC[0], PI[0], u), lerp(PC[1], PI[1], u) - Math.sin(u * Math.PI) * 10]; };
     const A = {
-      dy: trilha([[0, 0], [.95, 0, "io"], [1.15, 7, "out"], [1.55, -96, "outQ"], [1.9, -90, "in"], [2.42, 2, "out"], [2.6, 0, "io"], [2.95, -10, "io"], [3.3, 0]]),
-      lean: trilha([[0, 0], [1.15, 6, "io"], [1.45, -4, "io"], [1.76, -13, "in"], [1.9, 12, "out"], [2.3, 6, "io"], [2.9, -4, "io"], [3.3, 0]]),
-      f1: trilha([[0, 8], [.95, 8, "io"], [1.15, 45, "outQ"], [1.42, -178, "io"], [1.74, -212, "in"], [1.88, -150, "out"], [2.2, -45, "io"], [2.75, -12, "io"], [3.0, -175, "io"], [3.3, -168]]),
-      f2: trilha([[0, -8], [1.42, -10, "io"], [1.74, -78, "in"], [1.86, -4, "out"], [2.2, 18, "io"], [2.75, 6, "io"], [3.0, -10]]),
-      t1: trilha([[0, -6], [.95, -6, "io"], [1.15, 40, "outQ"], [1.42, -160, "io"], [1.7, -140, "io"], [1.95, -20, "io"], [2.6, 10, "io"], [3.3, 6]]),
-      t2: trilha([[0, -10], [1.42, -6, "io"], [1.95, -30, "io"], [2.6, -10]]),
-      perna: trilha([[0, 0], [1.15, 8, "out"], [1.45, 35, "io"], [1.85, 28, "io"], [2.3, -10, "io"], [2.7, 0]]),
+      dy: trilha([[0, 0], [.95, 0, "io"], [1.15, 8, "out"], [1.55, -98, "outQ"], [1.9, -92, "in"], [2.42, 2, "out"], [2.6, 0, "io"], [2.95, -12, "io"], [3.3, 0]]),
+      lean: trilha([[0, 0], [1.15, 7, "io"], [1.45, -4, "io"], [1.76, -14, "in"], [1.9, 13, "out"], [2.3, 6, "io"], [2.9, -4, "io"], [3.3, 0]]),
+      f1: trilha([[0, 8], [.95, 8, "io"], [1.15, 48, "outQ"], [1.42, -178, "io"], [1.74, -214, "in"], [1.88, -150, "out"], [2.2, -42, "io"], [2.75, -10, "io"], [3.0, -176, "io"], [3.3, -168]]),
+      f2: trilha([[0, -8], [1.42, -10, "io"], [1.74, -84, "in"], [1.86, -4, "out"], [2.2, 20, "io"], [2.75, 8, "io"], [3.0, -12]]),
+      f3: trilha([[0, 0], [1.74, -20, "io"], [1.88, 25, "out"], [2.3, 10]]),
+      t1: trilha([[0, -6], [.95, -6, "io"], [1.15, 42, "outQ"], [1.42, -162, "io"], [1.7, -142, "io"], [1.95, -18, "io"], [2.6, 10, "io"], [3.3, 6]]),
+      t2: trilha([[0, -10], [1.42, -6, "io"], [1.95, -32, "io"], [2.6, -10]]),
+      h1: trilha([[0, 6], [1.0, 10, "io"], [1.15, -18, "out"], [1.45, 16, "io"], [1.85, -24, "io"], [2.3, 2, "io"], [2.7, 6]]),
+      k1: trilha([[0, 8], [1.0, 30, "io"], [1.15, 2, "out"], [1.45, 70, "io"], [1.85, 40, "io"], [2.3, 12, "io"], [2.7, 8]]),
+      h2: trilha([[0, -4], [1.0, 2, "io"], [1.15, -10, "out"], [1.45, 28, "io"], [1.85, 6, "io"], [2.3, -4]]),
+      k2: trilha([[0, 10], [1.0, 34, "io"], [1.15, 4, "out"], [1.45, 82, "io"], [1.85, 50, "io"], [2.3, 14, "io"], [2.7, 10]]),
     };
     const LV = {
-      dy: trilha([[0, 0], [.35, 0, "io"], [.55, -14, "out"], [.85, 0]]),
-      f1: trilha([[0, 10], [.2, 10, "io"], [.5, -170, "io"], [.75, -165, "io"], [1.3, 5]]), f2: trilha([[0, -10], [.5, -25, "io"], [.7, 0, "io"], [1.3, -8]]),
-      t1: trilha([[0, -4], [.2, -4, "io"], [.5, -168, "io"], [.75, -160, "io"], [1.3, 0]]), t2: trilha([[0, -10], [.5, -25, "io"], [.7, 0, "io"], [1.3, -8]]),
+      dy: trilha([[0, 0], [.35, 0, "io"], [.55, -16, "out"], [.85, 0]]),
+      f1: trilha([[0, 10], [.2, 10, "io"], [.5, -170, "io"], [.75, -165, "io"], [1.3, 5]]), f2: trilha([[0, -10], [.5, -30, "io"], [.7, 0, "io"], [1.3, -8]]), f3: trilha([[0, 0], [.5, -40, "io"], [.75, 10, "io"], [1.3, 0]]),
+      t1: trilha([[0, -4], [.2, -4, "io"], [.5, -168, "io"], [.75, -160, "io"], [1.3, 0]]), t2: trilha([[0, -10], [.5, -30, "io"], [.7, 0, "io"], [1.3, -8]]),
       lean: trilha([[0, 0], [.5, -6, "io"], [.8, 2, "io"], [1.2, 0]]),
+      k1: trilha([[0, 8], [.35, 24, "io"], [.6, 4, "io"], [1, 8]]), k2: trilha([[0, 10], [.35, 26, "io"], [.6, 6, "io"], [1, 10]]),
     };
     const BQ = {
-      dy: trilha([[0, 0], [1.88, 0, "io"], [2.0, 5, "out"], [2.3, -55, "outQ"], [2.45, -52, "in"], [2.8, 0]]),
-      f1: trilha([[0, 6], [1.9, 6, "io"], [2.15, -176, "io"], [2.5, -170, "io"], [2.9, 8]]), f2: trilha([[0, -6], [2.1, -4], [2.9, -6]]),
+      dy: trilha([[0, 0], [1.88, 0, "io"], [2.0, 6, "out"], [2.3, -58, "outQ"], [2.45, -55, "in"], [2.8, 0]]),
+      f1: trilha([[0, 6], [1.9, 6, "io"], [2.15, -176, "io"], [2.5, -170, "io"], [2.9, 8]]), f2: trilha([[0, -6], [2.1, -4], [2.9, -6]]), f3: trilha([[0, 0], [2.15, -10], [2.9, 0]]),
       t1: trilha([[0, -6], [1.9, -6, "io"], [2.15, -170, "io"], [2.5, -165, "io"], [2.9, -6]]), t2: trilha([[0, -6], [2.9, -6]]),
-      perna: trilha([[0, 0], [2.0, 6, "io"], [2.3, 20, "io"], [2.8, 0]]),
+      h1: trilha([[0, 6], [2.0, 14, "io"], [2.3, -4, "io"], [2.8, 6]]), k1: trilha([[0, 8], [2.0, 40, "io"], [2.3, 30, "io"], [2.8, 8]]),
+      h2: trilha([[0, -4], [2.0, 10, "io"], [2.3, 10, "io"], [2.8, -4]]), k2: trilha([[0, 10], [2.0, 44, "io"], [2.3, 36, "io"], [2.8, 10]]),
       lean: trilha([[0, 0], [2.3, -4, "io"], [2.8, 0]]),
     };
     const FD = {
-      dy: trilha([[0, 0], [1.95, 0, "io"], [2.1, 4, "out"], [2.32, -6, "in"], [2.62, 46, "out"], [3.1, 38]]),
-      lean: trilha([[0, 0], [1.95, 0, "io"], [2.15, 18, "io"], [2.45, 62, "in"], [2.7, 72, "out"], [3.1, 70]]),
-      f1: trilha([[0, 6], [1.98, 6, "io"], [2.3, -105, "io"], [2.7, -120]]), f2: trilha([[0, -8], [2.3, -4]]),
-      t1: trilha([[0, -6], [1.98, -6, "io"], [2.3, -85, "io"], [2.7, -95]]), t2: trilha([[0, -8], [2.3, -6]]),
-      perna: trilha([[0, 0], [2.2, 10, "io"], [2.6, 40]]),
+      dy: trilha([[0, 0], [1.95, 0, "io"], [2.1, 5, "out"], [2.32, -6, "in"], [2.62, 48, "out"], [3.1, 40]]),
+      lean: trilha([[0, 0], [1.95, 0, "io"], [2.15, 18, "io"], [2.45, 64, "in"], [2.7, 74, "out"], [3.1, 72]]),
+      f1: trilha([[0, 6], [1.98, 6, "io"], [2.3, -105, "io"], [2.7, -122]]), f2: trilha([[0, -8], [2.3, -4]]), f3: trilha([[0, 0], [2.3, -10]]),
+      t1: trilha([[0, -6], [1.98, -6, "io"], [2.3, -86, "io"], [2.7, -96]]), t2: trilha([[0, -8], [2.3, -6]]),
+      h1: trilha([[0, 6], [2.2, -20, "io"], [2.6, -50]]), k1: trilha([[0, 8], [2.2, 20, "io"], [2.6, 10]]),
+      h2: trilha([[0, -4], [2.2, 30, "io"], [2.6, 50]]), k2: trilha([[0, 10], [2.2, 30, "io"], [2.6, 40]]),
     };
-    const camS = trilha([[0, 1.1, "io"], [.95, 1.0, "io"], [1.65, 1.42, "io"], [1.95, 1.48, "out"], [2.3, 1.3, "io"], [2.9, 1.04, "io"], [3.3, 1.08]]);
-    const camX = trilha([[0, 200, "io"], [.95, 196, "io"], [1.65, 186, "io"], [1.95, 205, "out"], [2.3, 270, "io"], [2.9, 215, "io"], [3.3, 210]]);
-    const camY = trilha([[0, 430, "io"], [.95, 420, "io"], [1.65, 345, "io"], [1.95, 340, "out"], [2.3, 410, "io"], [2.9, 430, "io"], [3.3, 420]]);
-    const spAtq = criaRespingo(146, WY, 16, 120, 7), spEnt = criaRespingo(150, WY, 14, 95, 19), spBola = criaRespingo(318, WY, 30, 230, 3), spDef = criaRespingo(358, WY, 18, 140, 11);
+    // os 4 do fundo: só balançam e reagem ao ponto (casa comemora, visitante lamenta)
+    const reac = (casa) => ({
+      f1: trilha(casa ? [[0, 8], [2.25, 8, "io"], [2.55, -172, "io"], [3.2, -166]] : [[0, -6], [2.3, -6, "io"], [2.7, -120, "io"], [3.2, -110]]),
+      f2: trilha(casa ? [[0, -8], [2.55, -12]] : [[0, -8], [2.7, -120]]),
+      dy: trilha(casa ? [[0, 0], [2.25, 0, "io"], [2.5, -18, "out"], [2.85, 0]] : [[0, 0], [3.2, 0]]),
+    });
+    const cena = [[atac, A], [levant, LV], [bloq, BQ], [fundoDef, FD], [atletas[0], reac(true)], [atletas[2], reac(true)], [atletas[1], reac(false)], [atletas[3], reac(false)]];
+    const camS = trilha([[0, 1.12, "io"], [.95, 1.0, "io"], [1.65, 1.45, "io"], [1.95, 1.52, "out"], [2.3, 1.32, "io"], [2.9, 1.05, "io"], [3.3, 1.08]]);
+    const camX = trilha([[0, 200, "io"], [.95, 196, "io"], [1.65, 190, "io"], [1.95, 206, "out"], [2.3, 276, "io"], [2.9, 215, "io"], [3.3, 210]]);
+    const camY = trilha([[0, 440, "io"], [.95, 430, "io"], [1.65, 350, "io"], [1.95, 345, "out"], [2.3, 420, "io"], [2.9, 440, "io"], [3.3, 430]]);
+    const spAtq = criaRespingo(166, 478, 22, 120, 7, 1), spEnt = criaRespingo(170, 478, 18, 100, 19, 1), spBola = criaRespingo(PI[0], PI[1], 46, 240, 3, 1), spDef = criaRespingo(352, 480, 26, 150, 11, 1);
     const T_ONDA = 3.25, T_REVELA = 3.8, T_LOGO = 3.95;
-    let durLogo = 2200, PARADO = 0, FIM = 0;
-    const SEGURA = 2.0;
+    let PARADO = 0, FIM = 0; const SEGURA = 2.0;
+    pgTxt.textContent = cfg.placar.sa + "-" + cfg.placar.sb;
 
     function ondaPath(baseY, amp, fase) {
-      let d = `M-200 ${baseY}`;
-      for (let x = -200; x <= 600; x += 20) d += ` L${x} ${(baseY + Math.sin(x / 38 + fase) * amp + Math.sin(x / 17 - fase * 1.7) * amp * .35).toFixed(1)}`;
+      let d = `M-220 ${baseY}`;
+      for (let x = -220; x <= 620; x += 20) d += ` L${x} ${(baseY + Math.sin(x / 38 + fase) * amp + Math.sin(x / 17 - fase * 1.7) * amp * .35).toFixed(1)}`;
       return d;
     }
     const hist = [];
@@ -407,61 +548,73 @@
     function quadro(agora) {
       if (t0 == null) t0 = agora;
       const t = (agora - t0) / 1000;
-      // água (ondas contínuas)
-      const fase = t * 2.2;
-      aguaTras.setAttribute("d", ondaPath(WY - 2, 2.2, fase) + ` L600 ${FY} L-200 ${FY} Z`);
-      aguaFrente.setAttribute("d", ondaPath(WY, 2.6, fase + .8) + ` L600 ${FY + 2} L-200 ${FY + 2} Z`);
-      brilhoAgua.setAttribute("d", ondaPath(WY, 2.6, fase + .8));
-      cLinhas.forEach((p, i) => { let d = ""; const y = WY + 22 + i * 17; for (let x = -200; x <= 600; x += 25) d += (x === -200 ? "M" : " L") + x + " " + (y + Math.sin(x / 30 + t * 1.6 + i) * 3).toFixed(1); p.setAttribute("d", d); });
-      // atletas
-      for (const [ob, tr] of [[atac, A], [levant, LV], [bloq, BQ], [fundoDef, FD]]) { for (const k in tr) ob.st[k] = tr[k](t); ob.aplicar(); }
-      // bola
-      let bx, by, rot;
-      if (t < .62) { [bx, by] = [96 + Math.sin(t * 6) * 1, 380]; rot = 0; }
-      else if (t < tc) { [bx, by] = bolaSet(t); rot = (t - .62) * 260; }
-      else if (t < ti) { [bx, by] = bolaCorte(t); rot = 320 + (t - tc) * 2600; }
-      else { const dt = t - ti; bx = 318 + dt * 30; by = WY + 18 + Math.min(dt * 60, 40); rot = 0; }
-      const sob = t >= ti;
-      bola.setAttribute("transform", `translate(${bx.toFixed(1)} ${by.toFixed(1)}) rotate(${rot.toFixed(0)}) scale(${t > tc - .02 && t < tc + .08 ? 1.25 - (Math.abs(t - tc - .03) * 4) : 1}, 1)`);
-      bola.setAttribute("opacity", sob ? clamp(1 - (t - ti) * 3, 0, 1).toFixed(2) : 1);
-      hist.push([bx, by, t]); while (hist.length && t - hist[0][2] > .14) hist.shift();
-      segs.forEach((s, i) => {
-        const a = hist[Math.floor(i / segs.length * hist.length)], b = hist[Math.min(hist.length - 1, Math.floor((i + 1) / segs.length * hist.length))];
-        const vis = t > tc && t < ti + .02 && a && b;
-        s.setAttribute("opacity", vis ? (.08 + .55 * i / segs.length).toFixed(2) : 0);
-        if (vis) { s.setAttribute("x1", a[0]); s.setAttribute("y1", a[1]); s.setAttribute("x2", b[0]); s.setAttribute("y2", b[1]); s.setAttribute("stroke-width", (2 + 12 * i / segs.length).toFixed(1)); }
+      // água: refração andando, ondulações em perspectiva e brilhos
+      flOff.setAttribute("dx", (t * 22 % 400).toFixed(1)); flOff.setAttribute("dy", (Math.sin(t * .8) * 6).toFixed(1));
+      linhasAgua.forEach((p, i) => {
+        const u = i / linhasAgua.length, y = 458 + Math.pow(u, 1.7) * 215, amp = .6 + u * 3.2, comp = 18 + u * 40;
+        let d = ""; for (let x = -220; x <= 620; x += 16) d += (x === -220 ? "M" : " L") + x + " " + (y + Math.sin(x / comp + t * (1.4 + u) + i * 2.1) * amp).toFixed(1);
+        p.setAttribute("d", d); p.setAttribute("stroke-width", (.5 + u * 1.6).toFixed(2)); p.setAttribute("stroke-opacity", (.1 + .14 * (1 - u)).toFixed(2));
       });
-      // brilho do contato
-      const ec = (t - tc + .02) / .28;
+      brilhos.forEach((b, i) => {
+        const u = ((i * .37) % 1), ph = t * 1.3 + i * 2.7, y = 462 + Math.pow(u, 1.6) * 205;
+        b.setAttribute("cx", ((i * 53.3) % 600 - 100 + Math.sin(ph) * 6).toFixed(1)); b.setAttribute("cy", y.toFixed(1));
+        b.setAttribute("rx", (1.5 + u * 5).toFixed(1)); b.setAttribute("opacity", Math.max(0, Math.sin(ph * 1.7)).toFixed(2) * .8);
+      });
+      // atletas
+      for (const [ob, tr] of cena) { for (const k in tr) ob.st[k] = tr[k](t); ob.aplicar(t); }
+      // torcida levanta no ponto
+      torcida.forEach((fila, i) => { const u = clamp((t - 2.2 - i * .04) / .25, 0, 1) * clamp(1 - (t - 2.9) / .4, 0, 1); fila.setAttribute("transform", `translate(0 ${(-u * 3 + Math.sin(t * 9 + i) * u).toFixed(2)})`); });
+      // bola
+      let bx, by, rot, sc = 1;
+      if (t < .62) { bx = 92; by = 384 + Math.sin(t * 5) * 1; rot = 0; }
+      else if (t < tc) { [bx, by] = bolaSet(t); rot = (t - .62) * 300; }
+      else if (t < ti) { [bx, by] = bolaCorte(t); rot = 360 + (t - tc) * 3000; }
+      else { const dt = t - ti; bx = PI[0] + dt * 26; by = PI[1] + 14 + Math.min(dt * 50, 30); rot = 0; }
+      if (t > tc - .02 && t < tc + .08) sc = 1.28 - Math.abs(t - tc - .03) * 4;
+      bola.setAttribute("transform", `translate(${bx.toFixed(1)} ${by.toFixed(1)}) scale(${sc.toFixed(3)} ${(2 - sc).toFixed(3)})`);
+      gomosR.setAttribute("transform", `rotate(${(rot % 360).toFixed(0)})`);
+      bola.setAttribute("opacity", t >= ti ? clamp(1 - (t - ti) * 3, 0, 1).toFixed(2) : 1);
+      // sombra da bola na água
+      const alt = WY + 8 - by; sombraBola.setAttribute("cx", bx.toFixed(1)); sombraBola.setAttribute("cy", (WY + 10).toFixed(1));
+      sombraBola.setAttribute("opacity", t < ti && alt > 0 ? clamp(.35 - alt / 700, 0, .3).toFixed(2) : 0); sombraBola.setAttribute("rx", (5 + alt / 40).toFixed(1));
+      hist.push([bx, by, t]); while (hist.length && t - hist[0][2] > .15) hist.shift();
+      segsR.forEach((s, i) => {
+        const a = hist[Math.floor(i / segsR.length * hist.length)], b = hist[Math.min(hist.length - 1, Math.floor((i + 1) / segsR.length * hist.length))];
+        const vis = t > tc && t < ti + .02 && a && b;
+        s.setAttribute("opacity", vis ? (.06 + .45 * i / segsR.length).toFixed(2) : 0);
+        if (vis) { s.setAttribute("x1", a[0]); s.setAttribute("y1", a[1]); s.setAttribute("x2", b[0]); s.setAttribute("y2", b[1]); s.setAttribute("stroke-width", (2 + 13 * i / segsR.length).toFixed(1)); }
+      });
+      const ec = (t - tc + .02) / .3;
       estrela.setAttribute("opacity", ec > 0 && ec < 1 ? (1 - ec).toFixed(2) : 0);
-      estrela.setAttribute("transform", `translate(186 290) scale(${(.5 + ec * 1.3).toFixed(2)}) rotate(${(ec * 30).toFixed(0)})`);
-      // respingos
-      spAtq.at(t - 1.2); spEnt.at(t - 2.38); spBola.at(t - ti); spDef.at(t - 2.55);
+      estrela.setAttribute("transform", `translate(${PC[0]} ${PC[1]}) scale(${(.5 + ec * 1.4).toFixed(2)}) rotate(${(ec * 30).toFixed(0)})`);
+      flash.setAttribute("opacity", ec > 0 && ec < 1 ? (.22 * (1 - ec)).toFixed(3) : 0);
+      spAtq.at(t - 1.18); spEnt.at(t - 2.38); spBola.at(t - ti); spDef.at(t - 2.55);
       // câmera com tremor no impacto
       const tr = t - ti, amp = tr > 0 && tr < .45 ? 6 * Math.pow(1 - tr / .45, 2) : 0;
       const sx = amp * Math.sin(tr * 70), sy = amp * Math.cos(tr * 57) * .7;
-      const S = camS(t);
-      cam.setAttribute("transform", `translate(${200 + sx} ${380 + sy}) scale(${S.toFixed(4)}) translate(${-camX(t).toFixed(2)} ${-camY(t).toFixed(2)})`);
-      // placar e PONTO!
+      cam.setAttribute("transform", `translate(${200 + sx} ${380 + sy}) scale(${camS(t).toFixed(4)}) translate(${-camX(t).toFixed(2)} ${-camY(t).toFixed(2)})`);
+      // placar
       hud.setAttribute("opacity", clamp((t - .25) / .4, 0, 1) * clamp(1 - (t - T_ONDA) / .3, 0, 1));
-      const fl = clamp((t - 2.22) / .3, 0, 1);
-      sA0.setAttribute("opacity", 1 - fl); sA0.setAttribute("transform", `translate(0 ${(-fl * 12).toFixed(1)})`);
-      sA1.setAttribute("opacity", fl); sA1.setAttribute("transform", `translate(0 ${((1 - fl) * 12).toFixed(1)})`);
+      piscaVivo.setAttribute("opacity", Math.sin(t * 6) > 0 ? 1 : .25);
+      const fl2 = clamp((t - 2.22) / .3, 0, 1);
+      sA0.setAttribute("opacity", 1 - fl2); sA0.setAttribute("transform", `translate(0 ${(-fl2 * 12).toFixed(1)})`);
+      sA1.setAttribute("opacity", fl2); sA1.setAttribute("transform", `translate(0 ${((1 - fl2) * 12).toFixed(1)})`);
+      if (t > 2.22) pgTxt.textContent = (cfg.placar.sa + 1) + "-" + cfg.placar.sb;
       const pt = t - 2.18, pin = clamp(pt / .22, 0, 1), pout = clamp((t - (T_ONDA - .1)) / .3, 0, 1);
       ponto.setAttribute("opacity", pt > 0 ? (pin * (1 - pout)).toFixed(2) : 0);
       ponto.setAttribute("transform", `translate(200 200) scale(${(pt > 0 ? (pt < .22 ? 2.2 - EZ.back(pin) * 1.2 : 1 + Math.max(0, .05 - (pt - .22) * .05)) : 2.2).toFixed(3)}) translate(-200 -200)`);
       linhasVel.setAttribute("transform", `translate(${(EZ.out(clamp(pt / .5, 0, 1)) * 30).toFixed(1)} 0)`);
-      // onda sobe cobrindo a cena e passa, revelando o logo
+      // onda de transição e revelação do logo
       const ou = clamp((t - T_ONDA) / (T_REVELA - T_ONDA), 0, 1), os = clamp((t - T_REVELA) / .6, 0, 1);
       const yOnda = 760 - EZ.io(ou) * 820 - EZ.in(os) * 900;
-      onda.setAttribute("d", ondaPath(yOnda, 10, t * 5) + " L600 1700 L-200 1700 Z");
-      onda2.setAttribute("d", ondaPath(yOnda + 26, 8, t * 4 + 2) + " L600 1700 L-200 1700 Z");
+      onda.setAttribute("d", ondaPath(yOnda, 10, t * 5) + " L620 1700 L-220 1700 Z");
+      onda2.setAttribute("d", ondaPath(yOnda + 26, 8, t * 4 + 2) + " L620 1700 L-220 1700 Z");
       onda.setAttribute("opacity", t > T_ONDA ? 1 : 0); onda2.setAttribute("opacity", t > T_ONDA ? 1 : 0);
-            if (t >= T_REVELA) { fim.style.opacity = 1; cam.setAttribute("opacity", 0); }
       svg.style.opacity = t < T_REVELA ? clamp(t / .45, 0, 1) : (os < 1 ? 1 : 0);
+      if (t >= T_REVELA) { fim.style.opacity = 1; cam.setAttribute("opacity", 0); }
       if (t >= T_LOGO && !logoIniciado) {
         logoIniciado = true;
-        durLogo = L.entrada();
+        const durLogo = L.entrada();
         sub.animate([{ opacity: 0, transform: "translateY(10px)" }, { opacity: 1, transform: "none" }], { duration: 600, delay: Math.max(0, durLogo - 900), easing: "cubic-bezier(.2,.8,.2,1)", fill: "both" });
         PARADO = T_LOGO + durLogo / 1000; FIM = PARADO + SEGURA;
       }
@@ -477,7 +630,6 @@
       removeEventListener("resize", ajusta);
     }
     ov.addEventListener("click", sair);
-    // começa quando as imagens do logo estiverem prontas (ou em 2,5 s, no máximo); internet muito lenta: abre o app direto
     let comecou = false;
     const iniciar = () => { if (comecou || acabou) return; comecou = true; raf = requestAnimationFrame(quadro); };
     L.pronto.then(iniciar); setTimeout(iniciar, 2500);
