@@ -43,6 +43,8 @@ input:focus-visible,button:focus-visible,select:focus-visible,a:focus-visible{ou
 .hero::after{content:"";position:absolute;left:-40px;top:-30px;width:200px;height:120px;background:repeating-linear-gradient(115deg,var(--amarelo) 0 10px,transparent 10px 22px,#1597dc 22px 32px,transparent 32px 44px);opacity:.85;transform:rotate(-8deg)}
 .hero-in{position:relative;z-index:1;max-width:640px;margin:0 auto;display:flex;align-items:center;gap:14px}
 .hero img{width:96px;height:96px;flex:0 0 auto;filter:drop-shadow(0 4px 10px rgb(0 0 0 / .35))}
+.hero .logo-lmb{width:104px;height:104px;flex:0 0 auto;filter:drop-shadow(0 4px 10px rgb(0 0 0 / .35))}
+.hero .logo-lmb img{width:100%;height:auto;filter:none}
 .hero h1{margin:0;font-family:var(--display);font-weight:400;text-transform:uppercase;line-height:.95;font-size:clamp(24px,7vw,34px);font-style:italic;letter-spacing:.01em}
 .hero h1 span{display:block;color:var(--amarelo);font-size:1.25em}
 .hero p{margin:6px 0 0;font-size:13px;opacity:.9}
@@ -94,10 +96,23 @@ footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13p
 </style>
 </head>
 <body>
+<script src="biribol-anim.js"></script>
+<script>
+/* Abertura: cortada na piscina de biribol + logo animado (biribol-anim.js, mesmo arquivo do Biribol Mococa). Uma vez por sessão. */
+try{ BiribolAnim.abertura({ tipo:"lmb", chave:"lmb-abertura", app:".hero, .faixa, .wrap",
+  faixaTexto:"LIGA METROPOLITANA DE BIRIBOL", legenda:"Torneios · Chaves · Súmulas · Estatísticas", ponto:"PONTO!",
+  placar:{ a:"EQUIPE A", b:"EQUIPE B", sa:20, sb:19, set:"2º SET" },
+  rotulo:"Abertura do app Liga Metropolitana de Biribol: na piscina de biribol, o atacante salta, corta e marca o ponto; depois aparece o escudo animado da Liga.",
+  cores:{ fundo:["#040f26","#0b2554"], agua:["#52c6f2","#1597dc","#0b3f7a"], azulejo:["#e6f1f8","#b9d3e6"], borda:"#ffffff", poste:"#cfd8e3", deck:"#0a1f45",
+    faixa:["#1597dc","#0b2554","#f6d20b"], faixaTexto:"#ffffff",
+    casa:{ touca:"#f6d20b", sunga:"#0b2554", detalhe:"#f6d20b" }, fora:{ touca:"#ffffff", sunga:"#1597dc", detalhe:"#ffffff" },
+    bola:["#f6d20b","#1597dc","#0b2554"], destaque:"#f6d20b", onda:["#1597dc","#0b2554"], finalCor:"#15418a" } });
+}catch(e){ console.error(e); }
+</script>
 <header class="hero">
   <span class="admin-pill" id="admin-pill" hidden>Organizador</span>
   <div class="hero-in">
-    <img src="logo.png" alt="Liga Metropolitana de Biribol" width="96" height="96">
+    <div class="logo-lmb" id="logo-anim" role="img" aria-label="Liga Metropolitana de Biribol"><img src="logo.png" alt="" width="96" height="96"></div>
     <div>
       <h1>Liga Metropolitana <span>de Biribol</span></h1>
       <p>Torneios, chaves, súmulas e estatísticas</p>
@@ -154,6 +169,9 @@ footer{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;font-size:13p
 </div>
 <div class="toast" id="toast" role="status"></div>
 
+<script>
+try{ BiribolAnim.logo(document.getElementById("logo-anim"), "lmb", { entrada:true, depoisDe: (window.__semAbertura || !document.getElementById("abertura")) ? null : "abertura-fim", atraso:250 }); }catch(e){ console.error(e); }
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInAnonymously, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
